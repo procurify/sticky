@@ -29,15 +29,11 @@ https://www.moncefbelyamani.com/how-to-install-xcode-homebrew-git-rvm-ruby-on-ma
 
 1. Clone this repo at `https://github.com/procurify/sticky.git`
 2. `cd slate`
-3. Initialize and start Slate. You can either do this locally, or with Vagrant:
+3. Initialize and start Slate:
 
 ```shell
-# either run this to run locally
 bundle install
 bundle exec middleman server
-
-# OR run this to run with vagrant
-vagrant up
 ```
 
 You can now see the docs at http://localhost:4567. Whoa! That was fast!
