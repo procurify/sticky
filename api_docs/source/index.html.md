@@ -1511,6 +1511,88 @@ VENDOR_ID | ID of the vendor being deleted
 
 204 No Content
 
+## Reactivate Vendor <code class='patch'>PATCH</code>
+
+> The above command accepts a body:
+
+```json
+{
+  "external_id": "1234"
+}
+```
+
+> The above command returns a JSON structured like this:
+
+```json
+{
+  "data": {
+    "id": 711,
+    "name": "Procurify,",
+    "active": true,
+    "address_line_one": "455 Granville St",
+    "address_line_two": "300",
+    "postal_code": "V6C 1T1",
+    "city": "Vancouver",
+    "state_province": "British Columbia",
+    "country": "Canada",
+    "email": "vendoremail@test.com",
+    "alt_email": "vendoraltemail@test.com",
+    "contact": "Joe Smith",
+    "phone": "479-195-8789",
+    "alt_phone": "479-696-4781",
+    "fax": "479-222-5688",
+    "comments": "Please call AR when placing PO to confirm receipt.",
+    "url": "http://www.staples.com/",
+    "payment_term": "Due on Receipt",
+    "shipping_term": "FOB",
+    "vendor_external_id": "VENDOR_EX_1",
+    "external_id": "1234",
+    "custom_fields": {}
+  },
+  "metadata": {}
+}
+```
+
+> When the vendor is already active, the request fails with:
+
+```json
+{
+  "errors": {
+    "null": {
+      "message": "Vendor is already active.",
+      "code": "VENDOR_ALREADY_ACTIVE"
+    }
+  }
+}
+```
+
+This endpoint reactivates a vendor that was previously deactivated. DELETE deactivates the vendor and clears `external_id`, so reactivate requires `external_id` to be re-supplied and restores the object map.
+
+There is no duplicate-name check on reactivation. A vendor can be reactivated even if another active vendor shares the same name.
+
+### HTTP Request
+
+`https://example.procurify.com/api/v3/integrations/netsuite/vendors/<VENDOR_ID>/reactivate/`
+
+### URL Parameters
+
+Parameter | Description
+--------- | -----------
+VENDOR_ID | ID of the vendor being reactivated
+
+### HTTP Response Status Code
+
+200 OK
+
+400 Bad Request — vendor is already active (`VENDOR_ALREADY_ACTIVE`)
+
+404 Not Found — vendor does not exist, or vendor type is not syncable (`OTHER`, `EMPLOYEE`, `CC_PROVIDER`)
+
+### Arguments
+
+<code>external_id</code><span class="required-tag">required</span><br />
+ID of the integration object. Required because DELETE cleared the previous `external_id`.
+
 ## Get Logs <code class='get'>GET</code>
 
 ### HTTP Request
