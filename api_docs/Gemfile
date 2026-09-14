@@ -12,3 +12,5 @@ gem 'nokogiri', '~> 1.19.4'
 gem 'sass'
 gem 'webrick'
 gem 'rails-html-sanitizer'
+# Pin to Sprockets 3: Middleman 4.6 + Sprockets 4 fails to compile .css.scss assets
+gem 'sprockets', '~> 3.7'
