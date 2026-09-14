@@ -284,7 +284,7 @@
     </style>
     <link href="stylesheets/screen-c9d8fa83.css" rel="stylesheet" media="screen" />
     <link href="stylesheets/print-953e3353.css" rel="stylesheet" media="print" />
-      <script src="javascripts/all_nosearch-18c3ed8e.js"></script>
+      <script src="javascripts/all_nosearch-447e9315.js"></script>
 
   </head>
 
@@ -372,6 +372,9 @@
                   </li>
                   <li>
                     <a href="#delete-vendor-delete" class="toc-h2 toc-link" data-title="Delete Vendor DELETE">Delete Vendor <code class="delete">DELETE</code></a>
+                  </li>
+                  <li>
+                    <a href="#reactivate-vendor-patch" class="toc-h2 toc-link" data-title="Reactivate Vendor PATCH">Reactivate Vendor <code class="patch">PATCH</code></a>
                   </li>
                   <li>
                     <a href="#get-logs-get" class="toc-h2 toc-link" data-title="Get Logs GET">Get Logs <code class="get">GET</code></a>
@@ -1887,7 +1890,84 @@ ID of the integration object.</p>
 </tbody></table>
 <h3 id='http-response-status-code-24'>HTTP Response Status Code</h3>
 <p>204 No Content</p>
-<h2 id='get-logs-get'>Get Logs <code class='get'>GET</code></h2><h3 id='http-request-25'>HTTP Request</h3>
+<h2 id='reactivate-vendor-patch'>Reactivate Vendor <code class='patch'>PATCH</code></h2>
+<blockquote>
+<p>The above command accepts a body:</p>
+</blockquote>
+<div class="highlight"><pre class="highlight json tab-json"><code><span class="p">{</span><span class="w">
+  </span><span class="nl">"external_id"</span><span class="p">:</span><span class="w"> </span><span class="s2">"1234"</span><span class="w">
+</span><span class="p">}</span><span class="w">
+</span></code></pre></div>
+<blockquote>
+<p>The above command returns a JSON structured like this:</p>
+</blockquote>
+<div class="highlight"><pre class="highlight json tab-json"><code><span class="p">{</span><span class="w">
+  </span><span class="nl">"data"</span><span class="p">:</span><span class="w"> </span><span class="p">{</span><span class="w">
+    </span><span class="nl">"id"</span><span class="p">:</span><span class="w"> </span><span class="mi">711</span><span class="p">,</span><span class="w">
+    </span><span class="nl">"name"</span><span class="p">:</span><span class="w"> </span><span class="s2">"Procurify,"</span><span class="p">,</span><span class="w">
+    </span><span class="nl">"active"</span><span class="p">:</span><span class="w"> </span><span class="kc">true</span><span class="p">,</span><span class="w">
+    </span><span class="nl">"address_line_one"</span><span class="p">:</span><span class="w"> </span><span class="s2">"455 Granville St"</span><span class="p">,</span><span class="w">
+    </span><span class="nl">"address_line_two"</span><span class="p">:</span><span class="w"> </span><span class="s2">"300"</span><span class="p">,</span><span class="w">
+    </span><span class="nl">"postal_code"</span><span class="p">:</span><span class="w"> </span><span class="s2">"V6C 1T1"</span><span class="p">,</span><span class="w">
+    </span><span class="nl">"city"</span><span class="p">:</span><span class="w"> </span><span class="s2">"Vancouver"</span><span class="p">,</span><span class="w">
+    </span><span class="nl">"state_province"</span><span class="p">:</span><span class="w"> </span><span class="s2">"British Columbia"</span><span class="p">,</span><span class="w">
+    </span><span class="nl">"country"</span><span class="p">:</span><span class="w"> </span><span class="s2">"Canada"</span><span class="p">,</span><span class="w">
+    </span><span class="nl">"email"</span><span class="p">:</span><span class="w"> </span><span class="s2">"vendoremail@test.com"</span><span class="p">,</span><span class="w">
+    </span><span class="nl">"alt_email"</span><span class="p">:</span><span class="w"> </span><span class="s2">"vendoraltemail@test.com"</span><span class="p">,</span><span class="w">
+    </span><span class="nl">"contact"</span><span class="p">:</span><span class="w"> </span><span class="s2">"Joe Smith"</span><span class="p">,</span><span class="w">
+    </span><span class="nl">"phone"</span><span class="p">:</span><span class="w"> </span><span class="s2">"479-195-8789"</span><span class="p">,</span><span class="w">
+    </span><span class="nl">"alt_phone"</span><span class="p">:</span><span class="w"> </span><span class="s2">"479-696-4781"</span><span class="p">,</span><span class="w">
+    </span><span class="nl">"fax"</span><span class="p">:</span><span class="w"> </span><span class="s2">"479-222-5688"</span><span class="p">,</span><span class="w">
+    </span><span class="nl">"comments"</span><span class="p">:</span><span class="w"> </span><span class="s2">"Please call AR when placing PO to confirm receipt."</span><span class="p">,</span><span class="w">
+    </span><span class="nl">"url"</span><span class="p">:</span><span class="w"> </span><span class="s2">"http://www.staples.com/"</span><span class="p">,</span><span class="w">
+    </span><span class="nl">"payment_term"</span><span class="p">:</span><span class="w"> </span><span class="s2">"Due on Receipt"</span><span class="p">,</span><span class="w">
+    </span><span class="nl">"shipping_term"</span><span class="p">:</span><span class="w"> </span><span class="s2">"FOB"</span><span class="p">,</span><span class="w">
+    </span><span class="nl">"vendor_external_id"</span><span class="p">:</span><span class="w"> </span><span class="s2">"VENDOR_EX_1"</span><span class="p">,</span><span class="w">
+    </span><span class="nl">"external_id"</span><span class="p">:</span><span class="w"> </span><span class="s2">"1234"</span><span class="p">,</span><span class="w">
+    </span><span class="nl">"custom_fields"</span><span class="p">:</span><span class="w"> </span><span class="p">{}</span><span class="w">
+  </span><span class="p">},</span><span class="w">
+  </span><span class="nl">"metadata"</span><span class="p">:</span><span class="w"> </span><span class="p">{}</span><span class="w">
+</span><span class="p">}</span><span class="w">
+</span></code></pre></div>
+<blockquote>
+<p>When the vendor is already active, the request fails with:</p>
+</blockquote>
+<div class="highlight"><pre class="highlight json tab-json"><code><span class="p">{</span><span class="w">
+  </span><span class="nl">"errors"</span><span class="p">:</span><span class="w"> </span><span class="p">{</span><span class="w">
+    </span><span class="nl">"null"</span><span class="p">:</span><span class="w"> </span><span class="p">{</span><span class="w">
+      </span><span class="nl">"message"</span><span class="p">:</span><span class="w"> </span><span class="s2">"Vendor is already active."</span><span class="p">,</span><span class="w">
+      </span><span class="nl">"code"</span><span class="p">:</span><span class="w"> </span><span class="s2">"VENDOR_ALREADY_ACTIVE"</span><span class="w">
+    </span><span class="p">}</span><span class="w">
+  </span><span class="p">}</span><span class="w">
+</span><span class="p">}</span><span class="w">
+</span></code></pre></div>
+<p>This endpoint reactivates a vendor that was previously deactivated. DELETE deactivates the vendor and clears <code>external_id</code>, so reactivate requires <code>external_id</code> to be re-supplied and restores the object map.</p>
+
+<p>There is no duplicate-name check on reactivation. A vendor can be reactivated even if another active vendor shares the same name.</p>
+<h3 id='http-request-25'>HTTP Request</h3>
+<p><code>https://example.procurify.com/api/v3/integrations/netsuite/vendors/&lt;VENDOR_ID&gt;/reactivate/</code></p>
+<h3 id='url-parameters-16'>URL Parameters</h3>
+<table><thead>
+<tr>
+<th>Parameter</th>
+<th>Description</th>
+</tr>
+</thead><tbody>
+<tr>
+<td>VENDOR_ID</td>
+<td>ID of the vendor being reactivated</td>
+</tr>
+</tbody></table>
+<h3 id='http-response-status-code-25'>HTTP Response Status Code</h3>
+<p>200 OK</p>
+
+<p>400 Bad Request — vendor is already active (<code>VENDOR_ALREADY_ACTIVE</code>)</p>
+
+<p>404 Not Found — vendor does not exist, or vendor type is not syncable (<code>OTHER</code>, <code>EMPLOYEE</code>, <code>CC_PROVIDER</code>)</p>
+<h3 id='arguments-9'>Arguments</h3>
+<p><code>external_id</code><span class="required-tag">required</span><br />
+ID of the integration object. Required because DELETE cleared the previous <code>external_id</code>.</p>
+<h2 id='get-logs-get'>Get Logs <code class='get'>GET</code></h2><h3 id='http-request-26'>HTTP Request</h3>
 <p><code>https://example.procurify.com/api/v3/integrations/netsuite/logs/</code></p>
 
 <blockquote>
@@ -1963,7 +2043,7 @@ ID of the integration object.</p>
     </span><span class="p">}</span><span class="w">
   </span><span class="p">}</span><span class="w">
 </span><span class="p">}</span><span class="w">
-</span></code></pre></div><h3 id='url-parameters-16'>URL Parameters</h3>
+</span></code></pre></div><h3 id='url-parameters-17'>URL Parameters</h3>
 <table><thead>
 <tr>
 <th>Parameter</th>
@@ -1979,9 +2059,9 @@ ID of the integration object.</p>
 <td><code>purchaseorder</code>, <code>receiptline</code>, <code>accountcode</code>, <code>vendor</code></td>
 </tr>
 </tbody></table>
-<h3 id='http-response-status-code-25'>HTTP Response Status Code</h3>
+<h3 id='http-response-status-code-26'>HTTP Response Status Code</h3>
 <p>200 OK</p>
-<h2 id='batch-upsert-object-maps-post'>Batch Upsert Object Maps  <code class='get'>POST</code></h2><h3 id='http-request-26'>HTTP Request</h3>
+<h2 id='batch-upsert-object-maps-post'>Batch Upsert Object Maps  <code class='get'>POST</code></h2><h3 id='http-request-27'>HTTP Request</h3>
 <p><code>https://example.procurify.com/api/v3/integrations/object-maps/batch/</code></p>
 
 <blockquote>
@@ -2028,9 +2108,9 @@ ID of the integration object.</p>
 </span><span class="p">}</span><span class="w">
 </span></code></pre></div>
 <p>This endpoint batch upserts multiple object maps.</p>
-<h3 id='http-response-status-code-26'>HTTP Response Status Code</h3>
+<h3 id='http-response-status-code-27'>HTTP Response Status Code</h3>
 <p>201 CREATED</p>
-<h3 id='arguments-9'>Arguments</h3>
+<h3 id='arguments-10'>Arguments</h3>
 <p><code>object_id</code><span class="required-tag">required</span><br />
 ID of the Procurify object.</p>
 
@@ -2068,7 +2148,7 @@ ID of the integration object.</p>
 
 <p><code>message</code><br />
 Optional message to save to integration logs.</p>
-<h2 id='create-catalog-item-post'>Create Catalog Item <code class='post'>POST</code></h2><h3 id='http-request-27'>HTTP Request</h3>
+<h2 id='create-catalog-item-post'>Create Catalog Item <code class='post'>POST</code></h2><h3 id='http-request-28'>HTTP Request</h3>
 <p><code>https://example.procurify.com/api/v3/integrations/netsuite/catalog-items/</code></p>
 
 <blockquote>
@@ -2116,9 +2196,9 @@ Optional message to save to integration logs.</p>
   </span><span class="p">},</span><span class="w">
   </span><span class="nl">"metadata"</span><span class="p">:</span><span class="w"> </span><span class="p">{}</span><span class="w">
 </span><span class="p">}</span><span class="w">
-</span></code></pre></div><h3 id='http-response-status-code-27'>HTTP Response Status Code</h3>
+</span></code></pre></div><h3 id='http-response-status-code-28'>HTTP Response Status Code</h3>
 <p>201 CREATED</p>
-<h3 id='arguments-10'>Arguments</h3>
+<h3 id='arguments-11'>Arguments</h3>
 <p><code>name</code><span class="required-tag">required</span><br />
 Name of your item.</p>
 
@@ -2149,7 +2229,7 @@ Amount for your item.</p>
 
 <p><code>custom_fields[]</code><br />
 A list of custom fields to be assigned to your catalog item. Each custom field object in the list must have an appropriate value and matching name to one of your active custom fields in Procurify.</p>
-<h2 id='update-catalog-item-put'>Update Catalog Item <code class='put'>PUT</code></h2><h3 id='http-request-28'>HTTP Request</h3>
+<h2 id='update-catalog-item-put'>Update Catalog Item <code class='put'>PUT</code></h2><h3 id='http-request-29'>HTTP Request</h3>
 <p><code>https://example.procurify.com/api/v3/integrations/netsuite/catalog-items/1234/</code></p>
 
 <blockquote>
@@ -2197,9 +2277,9 @@ A list of custom fields to be assigned to your catalog item. Each custom field o
   </span><span class="p">},</span><span class="w">
   </span><span class="nl">"metadata"</span><span class="p">:</span><span class="w"> </span><span class="p">{}</span><span class="w">
 </span><span class="p">}</span><span class="w">
-</span></code></pre></div><h3 id='http-response-status-code-28'>HTTP Response Status Code</h3>
+</span></code></pre></div><h3 id='http-response-status-code-29'>HTTP Response Status Code</h3>
 <p>200 OK</p>
-<h3 id='arguments-11'>Arguments</h3>
+<h3 id='arguments-12'>Arguments</h3>
 <p><code>name</code><span class="required-tag">required</span><br />
 Name of your item.</p>
 
@@ -2230,15 +2310,15 @@ Amount for your item.</p>
 
 <p><code>custom_fields[]</code><br />
 A list of custom fields to be assigned to your catalog item. Each custom field object in the list must have an appropriate value and matching name to one of your active custom fields in Procurify.</p>
-<h2 id='delete-catalog-item-delete'>Delete Catalog Item  <code class='delete'>DELETE</code></h2><h3 id='http-request-29'>HTTP Request</h3>
+<h2 id='delete-catalog-item-delete'>Delete Catalog Item  <code class='delete'>DELETE</code></h2><h3 id='http-request-30'>HTTP Request</h3>
 <p><code>https://example.procurify.com/api/v3/integrations/netsuite/catalog-items/1234/</code></p>
-<h3 id='http-response-status-code-29'>HTTP Response Status Code</h3>
-<p>204 No Content</p>
-<h2 id='get-currencies-get'>Get Currencies  <code class='get'>GET</code></h2><h3 id='http-request-30'>HTTP Request</h3>
-<p><code>https://example.procurify.com/api/v3/integrations/netsuite/currencies/</code></p>
 <h3 id='http-response-status-code-30'>HTTP Response Status Code</h3>
+<p>204 No Content</p>
+<h2 id='get-currencies-get'>Get Currencies  <code class='get'>GET</code></h2><h3 id='http-request-31'>HTTP Request</h3>
+<p><code>https://example.procurify.com/api/v3/integrations/netsuite/currencies/</code></p>
+<h3 id='http-response-status-code-31'>HTTP Response Status Code</h3>
 <p>200 OK</p>
-<h3 id='url-parameters-17'>URL Parameters</h3>
+<h3 id='url-parameters-18'>URL Parameters</h3>
 <table><thead>
 <tr>
 <th>Parameter</th>
@@ -2319,11 +2399,11 @@ A list of custom fields to be assigned to your catalog item. Each custom field o
     </span><span class="p">}</span><span class="w">
   </span><span class="p">}</span><span class="w">
 </span><span class="p">}</span><span class="w">
-</span></code></pre></div><h2 id='get-departments-get'>Get Departments  <code class='get'>GET</code></h2><h3 id='http-request-31'>HTTP Request</h3>
+</span></code></pre></div><h2 id='get-departments-get'>Get Departments  <code class='get'>GET</code></h2><h3 id='http-request-32'>HTTP Request</h3>
 <p><code>https://example.procurify.com/api/v3/integrations/netsuite/departments/</code></p>
-<h3 id='http-response-status-code-31'>HTTP Response Status Code</h3>
+<h3 id='http-response-status-code-32'>HTTP Response Status Code</h3>
 <p>200 OK</p>
-<h3 id='url-parameters-18'>URL Parameters</h3>
+<h3 id='url-parameters-19'>URL Parameters</h3>
 <table><thead>
 <tr>
 <th>Parameter</th>
