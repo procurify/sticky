@@ -1254,7 +1254,7 @@ This endpoint retrieves a list of vendors with specific status.
   "shipping_term": "FOB",
   "vendor_external_id": "VENDOR_EX_1",
   "external_id": "1234",
-  "is_active": true
+  "active": true
 }
 ```
 
@@ -1292,7 +1292,7 @@ This endpoint retrieves a list of vendors with specific status.
 
 This endpoint creates a vendor.
 
-Omitting `is_active` is fully backward compatible; existing SuiteApp payloads need no change. Sending a non-boolean value returns a 400 validation error. The field is request-only and is **not** returned in any response body. The existing `active` field in responses is unrelated and continues to reflect the Procurify record's state.
+Omitting `active` is fully backward compatible; existing SuiteApp payloads need no change. Sending a non-boolean or `null` value returns a 400 validation error. The value is accepted but **not currently acted on**: the record's active state is unchanged whether it is sent or omitted, and `active` in the response reflects the Procurify record, not the request value.
 
 ### HTTP Request
 
@@ -1361,8 +1361,8 @@ Vendor external id.
 <code>external_id</code><span class="required-tag">required</span><br />
 ID of the integration object.
 
-<code>is_active</code><br />
-Boolean. NetSuite's active/inactive flag for the record. Accepted and validated but **not currently acted on**; existing behaviour is unchanged whether it is sent or omitted. Reserved for future use. Nullable.
+<code>active</code><br />
+Boolean. NetSuite's active/inactive flag for the record. Accepted and validated but **not currently acted on**; existing behaviour is unchanged whether it is sent or omitted. Reserved for future use. Not nullable.
 
 ## Update Vendor <code class='put'>PUT</code>
 
@@ -1389,7 +1389,7 @@ Boolean. NetSuite's active/inactive flag for the record. Accepted and validated 
   "shipping_term": "FOB",
   "vendor_external_id": "VENDOR_EX_1",
   "external_id": "1234",
-  "is_active": true
+  "active": true
 }
 ```
 
@@ -1427,7 +1427,7 @@ Boolean. NetSuite's active/inactive flag for the record. Accepted and validated 
 
 This endpoint updates a specific vendor.
 
-Omitting `is_active` is fully backward compatible; existing SuiteApp payloads need no change. Sending a non-boolean value returns a 400 validation error. The field is request-only and is **not** returned in any response body. The existing `active` field in responses is unrelated and continues to reflect the Procurify record's state.
+Omitting `active` is fully backward compatible; existing SuiteApp payloads need no change. Sending a non-boolean or `null` value returns a 400 validation error. The value is accepted but **not currently acted on**: the record's active state is unchanged whether it is sent or omitted, and `active` in the response reflects the Procurify record, not the request value.
 
 ### HTTP Request
 
@@ -1502,8 +1502,8 @@ Vendor external id.
 <code>external_id</code><span class="required-tag">required</span><br />
 ID of the integration object.
 
-<code>is_active</code><br />
-Boolean. NetSuite's active/inactive flag for the record. Accepted and validated but **not currently acted on**; existing behaviour is unchanged whether it is sent or omitted. Reserved for future use. Nullable.
+<code>active</code><br />
+Boolean. NetSuite's active/inactive flag for the record. Accepted and validated but **not currently acted on**; existing behaviour is unchanged whether it is sent or omitted. Reserved for future use. Not nullable.
 
 ## Delete Vendor <code class='delete'>DELETE</code>
 
@@ -1529,8 +1529,7 @@ VENDOR_ID | ID of the vendor being deleted
 
 ```json
 {
-  "external_id": "1234",
-  "is_active": true
+  "external_id": "1234"
 }
 ```
 
@@ -1583,8 +1582,6 @@ This endpoint reactivates a vendor that was previously deactivated. DELETE deact
 
 There is no duplicate-name check on reactivation. A vendor can be reactivated even if another active vendor shares the same name.
 
-Omitting `is_active` is fully backward compatible; existing SuiteApp payloads need no change. Sending a non-boolean value returns a 400 validation error. The field is request-only and is **not** returned in any response body. The existing `active` field in responses is unrelated and continues to reflect the Procurify record's state.
-
 ### HTTP Request
 
 `https://example.procurify.com/api/v3/integrations/netsuite/vendors/<VENDOR_ID>/reactivate/`
@@ -1601,17 +1598,12 @@ VENDOR_ID | ID of the vendor being reactivated
 
 400 Bad Request — vendor is already active (`VENDOR_ALREADY_ACTIVE`)
 
-400 Bad Request — `is_active` is present and not a boolean
-
 404 Not Found — vendor does not exist, or vendor type is not syncable (`OTHER`, `EMPLOYEE`, `CC_PROVIDER`)
 
 ### Arguments
 
 <code>external_id</code><span class="required-tag">required</span><br />
 ID of the integration object. Required because DELETE cleared the previous `external_id`.
-
-<code>is_active</code><br />
-Boolean. NetSuite's active/inactive flag for the record. Accepted and validated but **not currently acted on**; existing behaviour is unchanged whether it is sent or omitted. Reserved for future use. Nullable.
 
 ## Get Logs <code class='get'>GET</code>
 
@@ -1808,7 +1800,7 @@ Optional message to save to integration logs.
   "currency": 1,
   "cost": "1.00000000",
   "external_id": "1234",
-  "is_active": true,
+  "active": true,
   "custom_fields": [
     {
       "custom_field_name": "An existing custom field",
@@ -1847,7 +1839,7 @@ Optional message to save to integration logs.
 
 201 CREATED
 
-Omitting `is_active` is fully backward compatible; existing SuiteApp payloads need no change. Sending a non-boolean value returns a 400 validation error. The field is request-only and is **not** returned in any response body. The existing `active` field in responses is unrelated and continues to reflect the Procurify record's state.
+Omitting `active` is fully backward compatible; existing SuiteApp payloads need no change. Sending a non-boolean or `null` value returns a 400 validation error. The value is accepted but **not currently acted on**: the record's active state is unchanged whether it is sent or omitted, and `active` in the response reflects the Procurify record, not the request value.
 
 ### Arguments
 
@@ -1882,8 +1874,8 @@ Amount for your item.
 <code>custom_fields[]</code><br />
 A list of custom fields to be assigned to your catalog item. Each custom field object in the list must have an appropriate value and matching name to one of your active custom fields in Procurify.
 
-<code>is_active</code><br />
-Boolean. NetSuite's active/inactive flag for the record. Accepted and validated but **not currently acted on**; existing behaviour is unchanged whether it is sent or omitted. Reserved for future use. Nullable.
+<code>active</code><br />
+Boolean. NetSuite's active/inactive flag for the record. Accepted and validated but **not currently acted on**; existing behaviour is unchanged whether it is sent or omitted. Reserved for future use. Not nullable.
 
 ## Update Catalog Item <code class='put'>PUT</code>
 
@@ -1905,7 +1897,7 @@ Boolean. NetSuite's active/inactive flag for the record. Accepted and validated 
   "currency": 1,
   "cost": "1.00000000",
   "external_id": "1234",
-  "is_active": true,
+  "active": true,
   "custom_fields": [
     {
       "custom_field_name": "An existing custom field",
@@ -1944,7 +1936,7 @@ Boolean. NetSuite's active/inactive flag for the record. Accepted and validated 
 
 200 OK
 
-Omitting `is_active` is fully backward compatible; existing SuiteApp payloads need no change. Sending a non-boolean value returns a 400 validation error. The field is request-only and is **not** returned in any response body. The existing `active` field in responses is unrelated and continues to reflect the Procurify record's state.
+Omitting `active` is fully backward compatible; existing SuiteApp payloads need no change. Sending a non-boolean or `null` value returns a 400 validation error. The value is accepted but **not currently acted on**: the record's active state is unchanged whether it is sent or omitted, and `active` in the response reflects the Procurify record, not the request value.
 
 ### Arguments
 
@@ -1979,8 +1971,8 @@ Amount for your item.
 <code>custom_fields[]</code><br />
 A list of custom fields to be assigned to your catalog item. Each custom field object in the list must have an appropriate value and matching name to one of your active custom fields in Procurify.
 
-<code>is_active</code><br />
-Boolean. NetSuite's active/inactive flag for the record. Accepted and validated but **not currently acted on**; existing behaviour is unchanged whether it is sent or omitted. Reserved for future use. Nullable.
+<code>active</code><br />
+Boolean. NetSuite's active/inactive flag for the record. Accepted and validated but **not currently acted on**; existing behaviour is unchanged whether it is sent or omitted. Reserved for future use. Not nullable.
 
 ## Delete Catalog Item  <code class='delete'>DELETE</code>
 
