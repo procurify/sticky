@@ -44,9 +44,9 @@ If you'd prefer to use Docker, instructions are available [in the wiki](https://
 
 ### Deploying to Github Pages
 
-A deploy script comes bundled with the repo, just follow [these steps here in the official wiki](https://github.com/slatedocs/slate/wiki/Deploying-Slate) to deploy to https://procurify.github.io/sticky/#netsuite.
+Merging to `master` publishes the site automatically. CircleCI builds the docs on every branch and pull request (the rendered `api_docs/build/` directory is stored as a job artifact) and, on `master` only, pushes the result to the `gh-pages` branch that GitHub Pages serves at https://procurify.github.io/sticky/. A merge that does not change rendered output will not create a new `gh-pages` commit.
 
-**Note:** merging to `master` does **not** publish the site. GitHub Pages serves the `gh-pages` branch, which is only updated when someone runs the deploy script manually:
+`./deploy.sh` remains the manual fallback if you need to publish from a local checkout:
 
 ```shell
 cd api_docs
@@ -54,4 +54,4 @@ bundle install
 ./deploy.sh
 ```
 
-Requires Ruby 3.3+ and push access to the repo. Use `./deploy.sh --source-only` to build without pushing and inspect `api_docs/build/` first.
+Requires Ruby 3.3+ and push access to the repo. Use `./deploy.sh --source-only` to build without pushing and inspect `api_docs/build/` first. To roll back the live site, revert the change on `master` and let CI republish, or run `./deploy.sh` locally from the older revision.
