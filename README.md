@@ -45,3 +45,13 @@ If you'd prefer to use Docker, instructions are available [in the wiki](https://
 ### Deploying to Github Pages
 
 A deploy script comes bundled with the repo, just follow [these steps here in the official wiki](https://github.com/slatedocs/slate/wiki/Deploying-Slate) to deploy to https://procurify.github.io/sticky/#netsuite.
+
+**Note:** merging to `master` does **not** publish the site. GitHub Pages serves the `gh-pages` branch, which is only updated when someone runs the deploy script manually:
+
+```shell
+cd api_docs
+bundle install
+./deploy.sh
+```
+
+Requires Ruby 3.3+ and push access to the repo. Use `./deploy.sh --source-only` to build without pushing and inspect `api_docs/build/` first.
