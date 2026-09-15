@@ -11,9 +11,16 @@ version: 2.1
 jobs:
   build:
     docker:
-      - image: cimg/ruby:3.3
+      # -node variant: middleman-core loads ExecJS (CoffeeScript, uglifier)
+      # at startup and needs a JavaScript runtime.
+      - image: cimg/ruby:3.3-node
     environment:
       BUNDLE_PATH: vendor/bundle
+      # RubyGems 4 runs `make -j<host cores + 1>` for native extensions unless
+      # MAKEFLAGS already sets -j. The container sees the host's core count, so
+      # the sassc/libsass compile fans out to dozens of compilers and exceeds
+      # the 4 GB medium-class limit. Cap it to the class's 2 CPUs.
+      MAKEFLAGS: -j2
     steps:
       - checkout
       - restore_cache:
