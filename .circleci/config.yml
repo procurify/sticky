@@ -1,11 +1,6 @@
-# Publishes https://procurify.github.io/sticky/ from api_docs/ on merge to master.
-#
-# Operational prerequisites (not stored in this repo):
-# - A write-capable SSH deploy key on this GitHub repo, added as an additional
-#   SSH key in CircleCI project settings. CircleCI's default checkout key is
-#   read-only and cannot push to gh-pages.
-# - gh-pages branch protection must allow that CI identity to push.
-#   Keep force-push disabled; rollback is a new commit, not a force-push.
+# Builds api_docs/ on every branch and pull request.
+# Rendered output is stored as the api-docs artifact.
+# Publishing to GitHub Pages is handled by .github/workflows/publish-api-docs.yml.
 version: 2.1
 
 jobs:
@@ -44,54 +39,8 @@ jobs:
       - store_artifacts:
           path: api_docs/build
           destination: api-docs
-      - persist_to_workspace:
-          root: .
-          paths:
-            - api_docs/build
-
-  deploy:
-    docker:
-      - image: cimg/base:stable
-    environment:
-      GIT_DEPLOY_USERNAME: procurify-circleci
-      GIT_DEPLOY_EMAIL: noreply@procurify.com
-    steps:
-      - checkout
-      - attach_workspace:
-          at: .
-      - add_ssh_keys
-      - run:
-          name: Publish gh-pages
-          working_directory: api_docs
-          command: |
-            # Prefer the write deploy key over CircleCI's read-only checkout key.
-            # add_ssh_keys writes additional keys as id_rsa_<fingerprint> /
-            # id_ed25519_<fingerprint>; the default checkout key is id_rsa.
-            mkdir -p "$HOME/.ssh"
-            found=0
-            {
-              echo "Host github.com"
-              echo "  IdentitiesOnly yes"
-              for key in "$HOME"/.ssh/id_rsa_* "$HOME"/.ssh/id_ed25519_*; do
-                if [ -f "$key" ]; then
-                  echo "  IdentityFile $key"
-                  found=1
-                fi
-              done
-            } >> "$HOME/.ssh/config"
-            if [ "$found" -eq 0 ]; then
-              echo "No additional SSH deploy key found. Add a write deploy key in CircleCI project settings." >&2
-              exit 1
-            fi
-            ./deploy.sh --push-only
 
 workflows:
-  publish:
+  build:
     jobs:
       - build
-      - deploy:
-          requires:
-            - build
-          filters:
-            branches:
-              only: master
