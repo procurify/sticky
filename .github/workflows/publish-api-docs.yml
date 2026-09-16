@@ -9,7 +9,6 @@ on:
   push:
     branches:
       - master
-      - PLAT-5948 # TEMP: remove before merge, build-only test of this workflow
     paths:
       - "api_docs/**"
       - ".github/workflows/publish-api-docs.yml"
