@@ -1,0 +1,71 @@
+# Publishes https://procurify.github.io/sticky/ from api_docs/.
+#
+# One-time repo setting: Pages → Source → GitHub Actions
+# (not "Deploy from a branch"). The first run after that switch
+# is the live site; the gh-pages branch is no longer consulted.
+name: Publish API docs
+
+on:
+  push:
+    branches:
+      - master
+    paths:
+      - "api_docs/**"
+      - ".github/workflows/publish-api-docs.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    env:
+      # Match CircleCI: cap native-extension compiles so sassc/libsass
+      # does not fan out to the host core count.
+      MAKEFLAGS: -j2
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Setup Ruby
+        uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: "3.3"
+          bundler: "2.6.3"
+          bundler-cache: true
+          working-directory: api_docs
+
+      - name: Setup Pages
+        uses: actions/configure-pages@v5
+
+      - name: Build docs
+        working-directory: api_docs
+        run: bundle exec middleman build --clean
+
+      - name: Upload Pages artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: api_docs/build
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
