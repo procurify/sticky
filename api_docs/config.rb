@@ -1,5 +1,7 @@
 # Unique header generation
 require './lib/unique_head.rb'
+require './lib/slate_js_bundle.rb'
+require 'uglifier'
 
 # Markdown
 set :markdown_engine, :redcarpet
@@ -27,8 +29,6 @@ ready do
   require './lib/multilang.rb'
 end
 
-activate :sprockets
-
 activate :autoprefixer do |config|
   config.browsers = ['last 2 version', 'Firefox ESR']
   config.cascade  = false
@@ -38,6 +38,8 @@ end
 # Github pages require relative links
 activate :relative_assets
 set :relative_links, true
+
+activate :slate_js_bundle
 
 # Build Configuration
 configure :build do
@@ -50,7 +52,8 @@ configure :build do
   # If you're having trouble with Middleman hanging, commenting
   # out the following two lines has been known to help
   activate :minify_css
-  activate :minify_javascript
+  # _copy.js uses const; Uglifier 4 needs harmony mode for ES6.
+  activate :minify_javascript, compressor: proc { Uglifier.new(harmony: true) }
   # activate :gzip
 end
 

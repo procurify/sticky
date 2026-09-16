@@ -1,16 +1,18 @@
 ruby '>= 3.3'
 source 'https://rubygems.org'
 
-# Middleman
-gem 'middleman', '~> 4.4'
-gem 'middleman-syntax', '~> 3.2'
+# Middleman 4.6+ drops the activesupport < 7.1 cap so Dependabot can
+# resolve >= 7.2.3.1. It requires rack >= 3, which rules out sprockets 3
+# (rack < 3). Sprockets 4 does not compile Slate's .css.scss assets, and
+# middleman-sprockets 4.1.1 has not been released since 2017, so CSS goes
+# through Middleman's SassC and JS is concatenated in lib/slate_js_bundle.rb.
+gem 'middleman', '~> 4.6'
+gem 'middleman-syntax', '~> 3.4'
 gem 'middleman-autoprefixer', '~> 3.0'
-gem 'middleman-sprockets', '~> 4.1'
 gem 'rouge', '~> 3.21'
 gem 'redcarpet', '~> 3.5.0'
 gem 'nokogiri', '~> 1.19.4'
-gem 'sass'
 gem 'webrick'
 gem 'rails-html-sanitizer'
-# Pin to Sprockets 3: Middleman 4.6 + Sprockets 4 fails to compile .css.scss assets
-gem 'sprockets', '~> 3.7'
+# 8.x pulls json 3, which ExecJS 2.7 (pinned by middleman-autoprefixer) cannot parse.
+gem 'activesupport', '>= 7.2.3.1', '< 8'
