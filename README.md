@@ -44,14 +44,18 @@ If you'd prefer to use Docker, instructions are available [in the wiki](https://
 
 ### Deploying to Github Pages
 
-Merging to `master` publishes the site automatically. CircleCI builds the docs on every branch and pull request (the rendered `api_docs/build/` directory is stored as a job artifact) and, on `master` only, pushes the result to the `gh-pages` branch that GitHub Pages serves at https://procurify.github.io/sticky/. A merge that does not change rendered output will not create a new `gh-pages` commit.
+Merging to `master` publishes the site automatically via the **Publish API docs** GitHub Actions workflow (`.github/workflows/publish-api-docs.yml`). CircleCI still builds the docs on every branch and pull request and stores `api_docs/build/` as a job artifact; it does not publish. The live site is https://procurify.github.io/sticky/.
 
-`./deploy.sh` remains the manual fallback if you need to publish from a local checkout:
+GitHub Pages must be sourced from **GitHub Actions**, not the `gh-pages` branch. That is a one-time repo setting (Settings → Pages → Source). After the switch, pushing to `gh-pages` does not update the live site, and `gh-pages` branch protection is unused for publishing.
+
+To publish manually, run **Publish API docs** from the Actions tab (`workflow_dispatch`).
+
+To inspect a local production build without publishing:
 
 ```shell
 cd api_docs
 bundle install
-./deploy.sh
+bundle exec middleman build --clean
 ```
 
-Requires Ruby 3.3+ and push access to the repo. Use `./deploy.sh --source-only` to build without pushing and inspect `api_docs/build/` first. To roll back the live site, revert the change on `master` and let CI republish, or run `./deploy.sh` locally from the older revision.
+To roll back the live site, revert the change on `master` and merge (the publish workflow rebuilds and deploys), or re-run a previous successful **Publish API docs** workflow from the Actions tab.
