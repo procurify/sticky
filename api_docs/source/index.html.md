@@ -1305,6 +1305,8 @@ Request `active` | Existing vendor is active | Existing vendor is inactive | No 
 omitted or `true` | stays active | reactivated | created active
 `false` | stays active | stays inactive | not created, 400 `INACTIVE_VENDOR_NOT_CREATED`
 
+`active: false` never deactivates a vendor. To deactivate a vendor, call Delete Vendor.
+
 A vendor removed with Delete Vendor keeps its object map. A later POST with the same `external_id` updates that vendor instead of creating a second one. It is reactivated unless the request sends `active: false`.
 
 Omitting `active` is fully backward compatible; existing SuiteApp payloads need no change. Sending a non-boolean or `null` value returns a 400 validation error. `active` in the response reflects the Procurify record, not the request value.
@@ -1467,6 +1469,8 @@ Request `active` | Vendor is active | Vendor is inactive
 ---------------- | ---------------- | ------------------
 omitted or `true` | stays active | reactivated
 `false` | stays active | stays inactive
+
+`active: false` never deactivates a vendor. To deactivate a vendor, call Delete Vendor.
 
 There is no duplicate-name check. If `external_id` is already mapped to a different vendor, the request fails with 400 `EXTERNAL_ID_ALREADY_MAPPED` and nothing is written. Sending a new `external_id` for a vendor moves that vendor's own mapping to the new id.
 
