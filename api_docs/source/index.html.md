@@ -1848,6 +1848,8 @@ Optional message to save to integration logs.
 
 ## Create Catalog Item <code class='post'>POST</code>
 
+Omitting `active` is fully backward compatible; existing SuiteApp payloads need no change. Sending a non-boolean or `null` value returns a 400 validation error. The value is accepted but **not currently acted on**: the record's active state is unchanged whether it is sent or omitted, and `active` in the response reflects the Procurify record, not the request value.
+
 ### HTTP Request
 
 `https://example.procurify.com/api/v3/integrations/netsuite/catalog-items/`
@@ -1905,8 +1907,6 @@ Optional message to save to integration logs.
 
 201 CREATED
 
-Omitting `active` is fully backward compatible; existing SuiteApp payloads need no change. Sending a non-boolean or `null` value returns a 400 validation error. The value is accepted but **not currently acted on**: the record's active state is unchanged whether it is sent or omitted, and `active` in the response reflects the Procurify record, not the request value.
-
 ### Arguments
 
 <code>name</code><span class="required-tag">required</span><br />
@@ -1944,6 +1944,8 @@ A list of custom fields to be assigned to your catalog item. Each custom field o
 Boolean. NetSuite's active/inactive flag for the record. Accepted and validated but **not currently acted on**; existing behaviour is unchanged whether it is sent or omitted. Reserved for future use. Not nullable.
 
 ## Update Catalog Item <code class='put'>PUT</code>
+
+Omitting `active` is fully backward compatible; existing SuiteApp payloads need no change. Sending a non-boolean or `null` value returns a 400 validation error. The value is accepted but **not currently acted on**: the record's active state is unchanged whether it is sent or omitted, and `active` in the response reflects the Procurify record, not the request value.
 
 ### HTTP Request
 
@@ -2001,8 +2003,6 @@ Boolean. NetSuite's active/inactive flag for the record. Accepted and validated 
 ### HTTP Response Status Code
 
 200 OK
-
-Omitting `active` is fully backward compatible; existing SuiteApp payloads need no change. Sending a non-boolean or `null` value returns a 400 validation error. The value is accepted but **not currently acted on**: the record's active state is unchanged whether it is sent or omitted, and `active` in the response reflects the Procurify record, not the request value.
 
 ### Arguments
 
