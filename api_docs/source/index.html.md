@@ -1150,7 +1150,7 @@ Try it out! `?id=1234` will get you item receipt line with id=1234
       "shipping_term": "FOB",
       "vendor_external_id": "VENDOR_EX_1",
       "external_id": "EX_VENDOR_2",
-      "custom_field": {}
+      "custom_fields": {}
     }
   ],
   "metadata": {
@@ -1168,6 +1168,8 @@ Try it out! `?id=1234` will get you item receipt line with id=1234
 
 This endpoint retrieves a list of vendors with specific status.
 
+Only active vendors are returned. A vendor removed with Delete Vendor is left out, with or without `show_all`.
+
 ### HTTP Request
 
 `https://example.procurify.com/api/v3/integrations/netsuite/vendors/?status=<STATUS>`
@@ -1176,7 +1178,7 @@ This endpoint retrieves a list of vendors with specific status.
 
 Parameter | Description                                                                                      | Example
 --------- |--------------------------------------------------------------------------------------------------| ---------
-STATUS | status can be "pending", "synced", or "error"                                                    | `?status=pending`
+STATUS | Object map status, case-insensitive: "pending", "synced", "error", "unsynced", "won't sync", "ignore", "manually synced", or "neutral". Omitted or unrecognized returns vendors with an object map in any status. Ignored when `show_all` is set. | `?status=pending`
 name | name of the vendor                                                                               | `?name=BestBuy`
 show_all     | Can use this to show vendors that were never synced.  Might be useful for catalog item creation. | `?show_all=true`
 
@@ -1212,14 +1214,15 @@ show_all     | Can use this to show vendors that were never synced.  Might be us
     "shipping_term": "FOB",
     "vendor_external_id": "VENDOR_EX_1",
     "external_id": "EX_VENDOR_2",
-    "custom_field": {}
+    "custom_fields": {}
   },
   "metadata": {}
 }
-}
 ```
 
-This endpoint retrieves a list of vendors with specific status.
+This endpoint retrieves a specific vendor.
+
+Only active vendors are returned. A vendor removed with Delete Vendor returns `404 Not Found` until it is reactivated.
 
 ### HTTP Request
 
@@ -1228,6 +1231,8 @@ This endpoint retrieves a list of vendors with specific status.
 ### HTTP Response Status Code
 
 200 OK
+
+404 Not Found — vendor does not exist, is inactive, or vendor type is not syncable (`OTHER`, `EMPLOYEE`, `CC_PROVIDER`)
 
 ## Create Vendor <code class='post'>POST</code>
 
@@ -1392,10 +1397,10 @@ Vendor payment term.
 Vendor shipping term.
 
 <code>vendor_external_id</code><br />
-Vendor external id.
+A field on the Procurify vendor record. It is stored as sent and is not used to match vendors. Delete Vendor clears it.
 
 <code>external_id</code><span class="required-tag">required</span><br />
-ID of the integration object.
+ID of the integration object. It is stored in the integration's object map, not on the vendor record, and it is the only value used to match the request to an existing vendor. Delete Vendor keeps it.
 
 <code>active</code><br />
 Boolean. NetSuite's active/inactive flag for the record. Omitted or `true` creates the vendor active, or reactivates a matched inactive vendor. `false` leaves a matched vendor's active state unchanged and refuses to create a new vendor. Not nullable.
@@ -1563,17 +1568,23 @@ Vendor payment term.
 Vendor shipping term.
 
 <code>vendor_external_id</code><br />
-Vendor external id.
+A field on the Procurify vendor record. It is stored as sent and is not used to match vendors. Delete Vendor clears it.
 
 <code>external_id</code><span class="required-tag">required</span><br />
-ID of the integration object.
+ID of the integration object. It is stored in the integration's object map, not on the vendor record, and it is the only value used to match the request to an existing vendor. Delete Vendor keeps it.
 
 <code>active</code><br />
 Boolean. NetSuite's active/inactive flag for the record. Omitted or `true` reactivates an inactive vendor. `false` leaves the vendor's active state unchanged; it never deactivates. Not nullable.
 
 ## Delete Vendor <code class='delete'>DELETE</code>
 
-This endpoint deletes a specific vendor.
+This endpoint soft deletes a specific vendor. It deactivates the vendor and clears `vendor_external_id`, the field on the vendor record. The vendor record is not removed. Its object map also stays, so `external_id` still links the vendor to the NetSuite record.
+
+To bring the vendor back, call Reactivate Vendor, or call Create Vendor with the same `external_id`. Until then, Get Vendors leaves the vendor out and Get Single Vendor Details returns `404 Not Found`.
+
+Checkout and Amazon punchout vendors cannot be deleted. The request fails with 400 `INVALID_VENDOR_DEACTIVATION`, unless the account has punchout vendor deletion enabled.
+
+This endpoint takes no request body. If one is sent, it must be JSON. Other content types return `415 Unsupported Media Type`, and the vendor is not changed.
 
 ### HTTP Request
 
@@ -1583,11 +1594,17 @@ This endpoint deletes a specific vendor.
 
 Parameter | Description
 --------- | -----------
-VENDOR_ID | ID of the vendor being deleted
+VENDOR_ID | ID of the vendor being soft deleted
 
 ### HTTP Response Status Code
 
 204 No Content
+
+400 Bad Request — vendor is a checkout or Amazon punchout vendor (`INVALID_VENDOR_DEACTIVATION`)
+
+404 Not Found — vendor does not exist, or vendor type is not syncable (`OTHER`, `EMPLOYEE`, `CC_PROVIDER`)
+
+415 Unsupported Media Type — request body is not JSON
 
 ## Reactivate Vendor <code class='patch'>PATCH</code>
 
@@ -1623,7 +1640,7 @@ VENDOR_ID | ID of the vendor being deleted
     "url": "http://www.staples.com/",
     "payment_term": "Due on Receipt",
     "shipping_term": "FOB",
-    "vendor_external_id": "VENDOR_EX_1",
+    "vendor_external_id": null,
     "external_id": "1234",
     "custom_fields": {}
   },
@@ -1644,9 +1661,11 @@ VENDOR_ID | ID of the vendor being deleted
 }
 ```
 
-This endpoint reactivates a vendor that was previously deactivated. DELETE deactivates the vendor and clears `external_id`, so reactivate requires `external_id` to be re-supplied and restores the object map.
+This endpoint reactivates a vendor that was previously deactivated. Delete Vendor clears `vendor_external_id`, the field on the vendor record, but keeps the object map. Reactivate sets the object map to the `external_id` in the request. It does not set `vendor_external_id` again, so after a Delete Vendor the response returns `null` for that field.
 
 There is no duplicate-name check on reactivation. A vendor can be reactivated even if another active vendor shares the same name.
+
+The request body must be JSON. Other content types return `415 Unsupported Media Type`.
 
 ### HTTP Request
 
@@ -1666,10 +1685,12 @@ VENDOR_ID | ID of the vendor being reactivated
 
 404 Not Found — vendor does not exist, or vendor type is not syncable (`OTHER`, `EMPLOYEE`, `CC_PROVIDER`)
 
+415 Unsupported Media Type — request body is not JSON
+
 ### Arguments
 
 <code>external_id</code><span class="required-tag">required</span><br />
-ID of the integration object. Required because DELETE cleared the previous `external_id`.
+ID of the integration object. Reactivate sets the vendor's object map to this value.
 
 ## Get Logs <code class='get'>GET</code>
 
