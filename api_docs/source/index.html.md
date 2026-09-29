@@ -1150,7 +1150,7 @@ Try it out! `?id=1234` will get you item receipt line with id=1234
       "shipping_term": "FOB",
       "vendor_external_id": "VENDOR_EX_1",
       "external_id": "EX_VENDOR_2",
-      "custom_field": {}
+      "custom_fields": {}
     }
   ],
   "metadata": {
@@ -1168,6 +1168,8 @@ Try it out! `?id=1234` will get you item receipt line with id=1234
 
 This endpoint retrieves a list of vendors with specific status.
 
+Only active vendors are returned. A vendor removed with Delete Vendor is left out, with or without `show_all`.
+
 ### HTTP Request
 
 `https://example.procurify.com/api/v3/integrations/netsuite/vendors/?status=<STATUS>`
@@ -1176,7 +1178,7 @@ This endpoint retrieves a list of vendors with specific status.
 
 Parameter | Description                                                                                      | Example
 --------- |--------------------------------------------------------------------------------------------------| ---------
-STATUS | status can be "pending", "synced", or "error"                                                    | `?status=pending`
+STATUS | Object map status, case-insensitive: "pending", "synced", "error", "unsynced", "won't sync", "ignore", "manually synced", or "neutral". Omitted or unrecognized returns vendors with an object map in any status. Ignored when `show_all` is set. | `?status=pending`
 name | name of the vendor                                                                               | `?name=BestBuy`
 show_all     | Can use this to show vendors that were never synced.  Might be useful for catalog item creation. | `?show_all=true`
 
@@ -1212,14 +1214,15 @@ show_all     | Can use this to show vendors that were never synced.  Might be us
     "shipping_term": "FOB",
     "vendor_external_id": "VENDOR_EX_1",
     "external_id": "EX_VENDOR_2",
-    "custom_field": {}
+    "custom_fields": {}
   },
   "metadata": {}
 }
-}
 ```
 
-This endpoint retrieves a list of vendors with specific status.
+This endpoint retrieves a specific vendor.
+
+Only active vendors are returned. A vendor removed with Delete Vendor returns `404 Not Found` until it is reactivated.
 
 ### HTTP Request
 
@@ -1228,6 +1231,8 @@ This endpoint retrieves a list of vendors with specific status.
 ### HTTP Response Status Code
 
 200 OK
+
+404 Not Found — vendor does not exist, is inactive, or vendor type is not syncable (`OTHER`, `EMPLOYEE`, `CC_PROVIDER`)
 
 ## Create Vendor <code class='post'>POST</code>
 
@@ -1290,9 +1295,41 @@ This endpoint retrieves a list of vendors with specific status.
 }
 ```
 
-This endpoint creates a vendor.
+This endpoint creates a vendor, or updates the existing vendor already linked to the same NetSuite record.
 
-Omitting `active` is fully backward compatible; existing SuiteApp payloads need no change. Sending a non-boolean or `null` value returns a 400 validation error. The value is accepted but **not currently acted on**: the record's active state is unchanged whether it is sent or omitted, and `active` in the response reflects the Procurify record, not the request value.
+The existing vendor is found by `external_id` only, through the integration's object map. Vendor names are not unique and are not used to match preferred vendors. If a vendor is renamed in NetSuite, the next sync updates the mapped Procurify vendor and renames it. An unmapped `external_id` creates a new vendor, even when a preferred vendor with the same name already exists. There is no duplicate-name check on this endpoint.
+
+The one exception is the first sync of a system vendor (checkout or Amazon punchout). When no object map exists for the `external_id`, an active system vendor with the same name is linked, unless it is already linked to a different `external_id`. After that first link, the object map is the only identity used.
+
+A request whose `external_id` maps to a vendor type that is not synced (other, employee, or credit card provider) fails with `INVALID_VENDOR_TYPE`. When an existing vendor is matched, the rules for `active` and for `external_id` are the same as on Update Vendor. The response is `201 Created` in both cases.
+
+`active` controls whether the sync reactivates the vendor. Sync never deactivates a vendor. Use Delete Vendor for that.
+
+Request `active` | Existing vendor is active | Existing vendor is inactive | No existing vendor
+---------------- | ------------------------- | --------------------------- | ------------------
+omitted or `true` | stays active | reactivated | created active
+`false` | stays active | stays inactive | not created, 400 `INACTIVE_VENDOR_NOT_CREATED`
+
+`active: false` never deactivates a vendor. To deactivate a vendor, call Delete Vendor.
+
+A vendor removed with Delete Vendor keeps its object map. A later POST with the same `external_id` updates that vendor instead of creating a second one. It is reactivated unless the request sends `active: false`.
+
+Omitting `active` is fully backward compatible; existing SuiteApp payloads need no change. Sending a non-boolean or `null` value returns a 400 validation error. `active` in the response reflects the Procurify record, not the request value.
+
+The request body must be JSON. Other content types return `415 Unsupported Media Type`.
+
+> When `active` is `false` and no existing vendor matches, the request fails with:
+
+```json
+{
+  "errors": {
+    "null": {
+      "message": "Vendor is inactive in the accounting system and was not created.",
+      "code": "INACTIVE_VENDOR_NOT_CREATED"
+    }
+  }
+}
+```
 
 ### HTTP Request
 
@@ -1301,6 +1338,10 @@ Omitting `active` is fully backward compatible; existing SuiteApp payloads need 
 ### HTTP Response Status Code
 
 201 Created
+
+400 Bad Request — `active` is `false` and no existing vendor matches (`INACTIVE_VENDOR_NOT_CREATED`)
+
+415 Unsupported Media Type — request body is not JSON
 
 ### Arguments
 
@@ -1356,13 +1397,13 @@ Vendor payment term.
 Vendor shipping term.
 
 <code>vendor_external_id</code><br />
-Vendor external id.
+A field on the Procurify vendor record. It is stored as sent and is not used to match vendors. Delete Vendor clears it.
 
 <code>external_id</code><span class="required-tag">required</span><br />
-ID of the integration object.
+ID of the integration object. It is stored in the integration's object map, not on the vendor record, and it is the only value used to match the request to an existing vendor. Delete Vendor keeps it.
 
 <code>active</code><br />
-Boolean. NetSuite's active/inactive flag for the record. Accepted and validated but **not currently acted on**; existing behaviour is unchanged whether it is sent or omitted. Reserved for future use. Not nullable.
+Boolean. NetSuite's active/inactive flag for the record. Omitted or `true` creates the vendor active, or reactivates a matched inactive vendor. `false` leaves a matched vendor's active state unchanged and refuses to create a new vendor. Not nullable.
 
 ## Update Vendor <code class='put'>PUT</code>
 
@@ -1425,9 +1466,35 @@ Boolean. NetSuite's active/inactive flag for the record. Accepted and validated 
 }
 ```
 
-This endpoint updates a specific vendor.
+This endpoint updates a specific vendor and links it to `external_id` in the integration's object map.
 
-Omitting `active` is fully backward compatible; existing SuiteApp payloads need no change. Sending a non-boolean or `null` value returns a 400 validation error. The value is accepted but **not currently acted on**: the record's active state is unchanged whether it is sent or omitted, and `active` in the response reflects the Procurify record, not the request value.
+`active` controls whether the sync reactivates the vendor. Sync never deactivates a vendor. Use Delete Vendor for that.
+
+Request `active` | Vendor is active | Vendor is inactive
+---------------- | ---------------- | ------------------
+omitted or `true` | stays active | reactivated
+`false` | stays active | stays inactive
+
+`active: false` never deactivates a vendor. To deactivate a vendor, call Delete Vendor.
+
+There is no duplicate-name check. If `external_id` is already mapped to a different vendor, the request fails with 400 `EXTERNAL_ID_ALREADY_MAPPED` and nothing is written. Sending a new `external_id` for a vendor moves that vendor's own mapping to the new id.
+
+Omitting `active` is fully backward compatible; existing SuiteApp payloads need no change. Sending a non-boolean or `null` value returns a 400 validation error. `active` in the response reflects the Procurify record, not the request value.
+
+The request body must be JSON. Other content types return `415 Unsupported Media Type`.
+
+> When `external_id` is already mapped to a different vendor, the request fails with:
+
+```json
+{
+  "errors": {
+    "null": {
+      "message": "This external id is already mapped to a different vendor.",
+      "code": "EXTERNAL_ID_ALREADY_MAPPED"
+    }
+  }
+}
+```
 
 ### HTTP Request
 
@@ -1442,6 +1509,10 @@ VENDOR_ID | ID of the vendor being updated
 ### HTTP Response Status Code
 
 200 OK
+
+400 Bad Request — `external_id` is already mapped to a different vendor (`EXTERNAL_ID_ALREADY_MAPPED`)
+
+415 Unsupported Media Type — request body is not JSON
 
 ### Arguments
 
@@ -1497,17 +1568,23 @@ Vendor payment term.
 Vendor shipping term.
 
 <code>vendor_external_id</code><br />
-Vendor external id.
+A field on the Procurify vendor record. It is stored as sent and is not used to match vendors. Delete Vendor clears it.
 
 <code>external_id</code><span class="required-tag">required</span><br />
-ID of the integration object.
+ID of the integration object. It is stored in the integration's object map, not on the vendor record, and it is the only value used to match the request to an existing vendor. Delete Vendor keeps it.
 
 <code>active</code><br />
-Boolean. NetSuite's active/inactive flag for the record. Accepted and validated but **not currently acted on**; existing behaviour is unchanged whether it is sent or omitted. Reserved for future use. Not nullable.
+Boolean. NetSuite's active/inactive flag for the record. Omitted or `true` reactivates an inactive vendor. `false` leaves the vendor's active state unchanged; it never deactivates. Not nullable.
 
 ## Delete Vendor <code class='delete'>DELETE</code>
 
-This endpoint deletes a specific vendor.
+This endpoint soft deletes a specific vendor. It deactivates the vendor and clears `vendor_external_id`, the field on the vendor record. The vendor record is not removed. Its object map also stays, so `external_id` still links the vendor to the NetSuite record.
+
+To bring the vendor back, call Reactivate Vendor, or call Create Vendor with the same `external_id`. Until then, Get Vendors leaves the vendor out and Get Single Vendor Details returns `404 Not Found`.
+
+Checkout and Amazon punchout vendors cannot be deleted. The request fails with 400 `INVALID_VENDOR_DEACTIVATION`, unless the account has punchout vendor deletion enabled.
+
+This endpoint takes no request body. If one is sent, it must be JSON. Other content types return `415 Unsupported Media Type`, and the vendor is not changed.
 
 ### HTTP Request
 
@@ -1517,11 +1594,17 @@ This endpoint deletes a specific vendor.
 
 Parameter | Description
 --------- | -----------
-VENDOR_ID | ID of the vendor being deleted
+VENDOR_ID | ID of the vendor being soft deleted
 
 ### HTTP Response Status Code
 
 204 No Content
+
+400 Bad Request — vendor is a checkout or Amazon punchout vendor (`INVALID_VENDOR_DEACTIVATION`)
+
+404 Not Found — vendor does not exist, or vendor type is not syncable (`OTHER`, `EMPLOYEE`, `CC_PROVIDER`)
+
+415 Unsupported Media Type — request body is not JSON
 
 ## Reactivate Vendor <code class='patch'>PATCH</code>
 
@@ -1557,7 +1640,7 @@ VENDOR_ID | ID of the vendor being deleted
     "url": "http://www.staples.com/",
     "payment_term": "Due on Receipt",
     "shipping_term": "FOB",
-    "vendor_external_id": "VENDOR_EX_1",
+    "vendor_external_id": null,
     "external_id": "1234",
     "custom_fields": {}
   },
@@ -1578,9 +1661,11 @@ VENDOR_ID | ID of the vendor being deleted
 }
 ```
 
-This endpoint reactivates a vendor that was previously deactivated. DELETE deactivates the vendor and clears `external_id`, so reactivate requires `external_id` to be re-supplied and restores the object map.
+This endpoint reactivates a vendor that was previously deactivated. Delete Vendor clears `vendor_external_id`, the field on the vendor record, but keeps the object map. Reactivate sets the object map to the `external_id` in the request. It does not set `vendor_external_id` again, so after a Delete Vendor the response returns `null` for that field.
 
 There is no duplicate-name check on reactivation. A vendor can be reactivated even if another active vendor shares the same name.
+
+The request body must be JSON. Other content types return `415 Unsupported Media Type`.
 
 ### HTTP Request
 
@@ -1600,10 +1685,12 @@ VENDOR_ID | ID of the vendor being reactivated
 
 404 Not Found — vendor does not exist, or vendor type is not syncable (`OTHER`, `EMPLOYEE`, `CC_PROVIDER`)
 
+415 Unsupported Media Type — request body is not JSON
+
 ### Arguments
 
 <code>external_id</code><span class="required-tag">required</span><br />
-ID of the integration object. Required because DELETE cleared the previous `external_id`.
+ID of the integration object. Reactivate sets the vendor's object map to this value.
 
 ## Get Logs <code class='get'>GET</code>
 
@@ -1782,6 +1869,8 @@ Optional message to save to integration logs.
 
 ## Create Catalog Item <code class='post'>POST</code>
 
+Omitting `active` is fully backward compatible; existing SuiteApp payloads need no change. Sending a non-boolean or `null` value returns a 400 validation error. The value is accepted but **not currently acted on**: the record's active state is unchanged whether it is sent or omitted, and `active` in the response reflects the Procurify record, not the request value.
+
 ### HTTP Request
 
 `https://example.procurify.com/api/v3/integrations/netsuite/catalog-items/`
@@ -1839,8 +1928,6 @@ Optional message to save to integration logs.
 
 201 CREATED
 
-Omitting `active` is fully backward compatible; existing SuiteApp payloads need no change. Sending a non-boolean or `null` value returns a 400 validation error. The value is accepted but **not currently acted on**: the record's active state is unchanged whether it is sent or omitted, and `active` in the response reflects the Procurify record, not the request value.
-
 ### Arguments
 
 <code>name</code><span class="required-tag">required</span><br />
@@ -1878,6 +1965,8 @@ A list of custom fields to be assigned to your catalog item. Each custom field o
 Boolean. NetSuite's active/inactive flag for the record. Accepted and validated but **not currently acted on**; existing behaviour is unchanged whether it is sent or omitted. Reserved for future use. Not nullable.
 
 ## Update Catalog Item <code class='put'>PUT</code>
+
+Omitting `active` is fully backward compatible; existing SuiteApp payloads need no change. Sending a non-boolean or `null` value returns a 400 validation error. The value is accepted but **not currently acted on**: the record's active state is unchanged whether it is sent or omitted, and `active` in the response reflects the Procurify record, not the request value.
 
 ### HTTP Request
 
@@ -1935,8 +2024,6 @@ Boolean. NetSuite's active/inactive flag for the record. Accepted and validated 
 ### HTTP Response Status Code
 
 200 OK
-
-Omitting `active` is fully backward compatible; existing SuiteApp payloads need no change. Sending a non-boolean or `null` value returns a 400 validation error. The value is accepted but **not currently acted on**: the record's active state is unchanged whether it is sent or omitted, and `active` in the response reflects the Procurify record, not the request value.
 
 ### Arguments
 
