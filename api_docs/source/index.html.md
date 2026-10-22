@@ -1873,10 +1873,9 @@ This endpoint creates a catalog item, or updates the existing catalog item alrea
 
 A new catalog item is assigned to every active department. `department_ids` is not accepted. A request that sends it fails with 400 `CATALOG_ITEM_DEPARTMENT_IDS_NOT_ACCEPTED`, and nothing is created or changed.
 
-Catalog item reactivation is enabled per account. On an account with it enabled:
+The existing catalog item is found by `external_id` through the integration's object map, including an item removed with Delete Catalog Item. A matched item is updated instead of creating a duplicate, with the same rules as Update Catalog Item, including the rules for fields the request leaves out. The response is `201 Created` in both cases.
 
-* The existing catalog item is found by `external_id` through the integration's object map, including an item removed with Delete Catalog Item. A matched item is updated instead of creating a duplicate, with the same rules as Update Catalog Item, including the rules for fields the request leaves out. The response is `201 Created` in both cases.
-* `active` controls whether the sync reactivates the catalog item. Sync never deactivates a catalog item. Use Delete Catalog Item for that.
+`active` controls whether the sync reactivates the catalog item. Sync never deactivates a catalog item. Use Delete Catalog Item for that.
 
 Request `active` | Existing item is active | Existing item is inactive | No existing item
 ---------------- | ----------------------- | ------------------------- | ----------------
@@ -1886,8 +1885,6 @@ omitted or `true` | stays active | reactivated | created active
 `active: false` never deactivates a catalog item. To deactivate a catalog item, call Delete Catalog Item.
 
 A reactivated catalog item comes back in the departments it had, but not in its bundles: Delete Catalog Item removes it from its bundles, and reactivation does not add it back. Its custom field values are kept unless the request sends `custom_fields`. A reactivated item with no departments is not visible to requesters while catalog permissions are on.
-
-On an account without reactivation enabled, every request creates a new catalog item, and `active` is accepted but not acted on.
 
 To keep a catalog item in step with NetSuite, call Delete Catalog Item when the item goes inactive in NetSuite. When it is active again, send the normal Create Catalog Item or Update Catalog Item request with `active` omitted or `true`.
 
@@ -2001,10 +1998,10 @@ Amount for your item.
 A list of custom fields to be assigned to your catalog item. Each custom field object in the list must have an appropriate value and matching name to one of your active custom fields in Procurify.
 
 <code>external_id</code><span class="required-tag">required</span><br />
-ID of the integration object. It is stored in the integration's object map, and on an account with catalog item reactivation enabled it is the only value used to match the request to an existing catalog item. Delete Catalog Item keeps it.
+ID of the integration object. It is stored in the integration's object map, and it is the only value used to match the request to an existing catalog item. Delete Catalog Item keeps it.
 
 <code>active</code><br />
-Boolean. NetSuite's active/inactive flag for the record. On an account with catalog item reactivation enabled, omitted or `true` creates the catalog item active, or reactivates a matched inactive item. `false` leaves a matched item's active state unchanged and refuses to create a new item. Otherwise accepted but not acted on. Not nullable.
+Boolean. NetSuite's active/inactive flag for the record. Omitted or `true` creates the catalog item active, or reactivates a matched inactive item. `false` leaves a matched item's active state unchanged and refuses to create a new item. Not nullable.
 
 ## Update Catalog Item <code class='put'>PUT</code>
 
@@ -2018,7 +2015,7 @@ Fields the request leaves out are handled like this:
 * Custom field values are only replaced when the body sends `custom_fields`. The list replaces all of the item's custom field values, and an explicit `[]` clears them. When `custom_fields` is left out, the stored values are kept.
 * Department tags are never changed by an update. `department_ids` is ignored.
 
-Catalog item reactivation is enabled per account. On an account with it enabled, an inactive catalog item can be updated, and `active` controls whether the sync reactivates it. Sync never deactivates a catalog item. Use Delete Catalog Item for that.
+An inactive catalog item can be updated, and `active` controls whether the sync reactivates it. Sync never deactivates a catalog item. Use Delete Catalog Item for that.
 
 Request `active` | Item is active | Item is inactive
 ---------------- | -------------- | ----------------
@@ -2028,8 +2025,6 @@ omitted or `true` | stays active | reactivated
 `active: false` never deactivates a catalog item. To deactivate a catalog item, call Delete Catalog Item.
 
 A reactivated catalog item comes back in the departments it had, but not in its bundles. Its custom field values are kept unless the request sends `custom_fields`.
-
-On an account without reactivation enabled, a request for an inactive catalog item returns `404 Not Found`, and `active` is accepted but not acted on.
 
 Omitting `active` is fully backward compatible; existing SuiteApp payloads need no change. Sending `null` or a value that is not a boolean returns a 400 validation error. `active` in the response reflects the Procurify record, not the request value.
 
@@ -2098,7 +2093,7 @@ CATALOG_ITEM_ID | ID of the catalog item being updated
 
 200 OK
 
-404 Not Found — catalog item does not exist, or is inactive on an account without catalog item reactivation enabled
+404 Not Found — catalog item does not exist
 
 ### Arguments
 
@@ -2137,13 +2132,13 @@ A list of custom fields to be assigned to your catalog item. Each custom field o
 ID of the integration object. It must match the catalog item's object map.
 
 <code>active</code><br />
-Boolean. NetSuite's active/inactive flag for the record. On an account with catalog item reactivation enabled, omitted or `true` reactivates an inactive catalog item. `false` leaves the item's active state unchanged; it never deactivates. Otherwise accepted but not acted on. Not nullable.
+Boolean. NetSuite's active/inactive flag for the record. Omitted or `true` reactivates an inactive catalog item. `false` leaves the item's active state unchanged; it never deactivates. Not nullable.
 
 ## Delete Catalog Item  <code class='delete'>DELETE</code>
 
 This endpoint deactivates a specific catalog item, the same as a delete in the catalog UI. The item is removed from its bundles. Its department tags, custom field values and object map are kept, so `external_id` still links the item to the NetSuite record.
 
-On an account with catalog item reactivation enabled, Create Catalog Item or Update Catalog Item with the same `external_id` brings the item back. See those endpoints for what a reactivated item keeps.
+Create Catalog Item or Update Catalog Item with the same `external_id` brings the item back. See those endpoints for what a reactivated item keeps.
 
 ### HTTP Request
 
