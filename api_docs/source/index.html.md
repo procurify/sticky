@@ -1869,7 +1869,44 @@ Optional message to save to integration logs.
 
 ## Create Catalog Item <code class='post'>POST</code>
 
-Omitting `active` is fully backward compatible; existing SuiteApp payloads need no change. Sending a non-boolean or `null` value returns a 400 validation error. The value is accepted but **not currently acted on**: the record's active state is unchanged whether it is sent or omitted, and `active` in the response reflects the Procurify record, not the request value.
+This endpoint creates a catalog item, or updates the existing catalog item already linked to the same NetSuite record.
+
+A new catalog item is assigned to every active department. `department_ids` is not accepted. A request that sends it fails with 400 `CATALOG_ITEM_DEPARTMENT_IDS_NOT_ACCEPTED`, and nothing is created or changed.
+
+Catalog item reactivation is enabled per account. On an account with it enabled:
+
+* The existing catalog item is found by `external_id` through the integration's object map, including an item removed with Delete Catalog Item. A matched item is updated instead of creating a duplicate, with the same rules as Update Catalog Item, including the rules for fields the request leaves out. The response is `201 Created` in both cases.
+* `active` controls whether the sync reactivates the catalog item. Sync never deactivates a catalog item. Use Delete Catalog Item for that.
+
+Request `active` | Existing item is active | Existing item is inactive | No existing item
+---------------- | ----------------------- | ------------------------- | ----------------
+omitted or `true` | stays active | reactivated | created active
+`false` | stays active | stays inactive | not created, 400 `INACTIVE_CATALOG_ITEM_NOT_CREATED`
+
+`active: false` never deactivates a catalog item. To deactivate a catalog item, call Delete Catalog Item.
+
+A reactivated catalog item comes back in the departments it had, but not in its bundles: Delete Catalog Item removes it from its bundles, and reactivation does not add it back. Its custom field values are kept unless the request sends `custom_fields`. A reactivated item with no departments is not visible to requesters while catalog permissions are on.
+
+On an account without reactivation enabled, every request creates a new catalog item, and `active` is accepted but not acted on.
+
+To keep a catalog item in step with NetSuite, call Delete Catalog Item when the item goes inactive in NetSuite. When it is active again, send the normal Create Catalog Item or Update Catalog Item request with `active` omitted or `true`.
+
+Omitting `active` is fully backward compatible; existing SuiteApp payloads need no change. Sending `null` or a value that is not a boolean returns a 400 validation error. `active` in the response reflects the Procurify record, not the request value.
+
+The request body can be JSON or form-encoded. The strings `"true"` and `"false"` are read as booleans, so `"false"` behaves the same as `false`.
+
+> When `active` is `false` and no existing catalog item matches, the request fails with:
+
+```json
+{
+  "errors": {
+    "null": {
+      "message": "Catalog item is inactive in the accounting system and was not created.",
+      "code": "INACTIVE_CATALOG_ITEM_NOT_CREATED"
+    }
+  }
+}
+```
 
 ### HTTP Request
 
@@ -1928,6 +1965,8 @@ Omitting `active` is fully backward compatible; existing SuiteApp payloads need 
 
 201 CREATED
 
+400 Bad Request — `active` is `false` and no existing catalog item matches (`INACTIVE_CATALOG_ITEM_NOT_CREATED`), or the request sends `department_ids` (`CATALOG_ITEM_DEPARTMENT_IDS_NOT_ACCEPTED`)
+
 ### Arguments
 
 <code>name</code><span class="required-tag">required</span><br />
@@ -1961,16 +2000,50 @@ Amount for your item.
 <code>custom_fields[]</code><br />
 A list of custom fields to be assigned to your catalog item. Each custom field object in the list must have an appropriate value and matching name to one of your active custom fields in Procurify.
 
+<code>external_id</code><span class="required-tag">required</span><br />
+ID of the integration object. It is stored in the integration's object map, and on an account with catalog item reactivation enabled it is the only value used to match the request to an existing catalog item. Delete Catalog Item keeps it.
+
 <code>active</code><br />
-Boolean. NetSuite's active/inactive flag for the record. Accepted and validated but **not currently acted on**; existing behaviour is unchanged whether it is sent or omitted. Reserved for future use. Not nullable.
+Boolean. NetSuite's active/inactive flag for the record. On an account with catalog item reactivation enabled, omitted or `true` creates the catalog item active, or reactivates a matched inactive item. `false` leaves a matched item's active state unchanged and refuses to create a new item. Otherwise accepted but not acted on. Not nullable.
 
 ## Update Catalog Item <code class='put'>PUT</code>
 
-Omitting `active` is fully backward compatible; existing SuiteApp payloads need no change. Sending a non-boolean or `null` value returns a 400 validation error. The value is accepted but **not currently acted on**: the record's active state is unchanged whether it is sent or omitted, and `active` in the response reflects the Procurify record, not the request value.
+This endpoint updates a specific catalog item. `CATALOG_ITEM_ID` is the Procurify catalog item ID, not the NetSuite `external_id`.
+
+Fields the request leaves out are handled like this:
+
+* `name` is required.
+* `cost`, `description`, `unit_type`, `internal_sku`, `product_url`, `vendor` and `account_code` are set from the body. One that the body leaves out is cleared to its default: `0` for `cost`, an empty string for the text fields, and no vendor or account code. The SuiteApp leaves a field out when it is empty in NetSuite, so clearing it keeps the item in step.
+* `currency` keeps the stored value when the body leaves it out.
+* Custom field values are only replaced when the body sends `custom_fields`. The list replaces all of the item's custom field values, and an explicit `[]` clears them. When `custom_fields` is left out, the stored values are kept.
+* Department tags are never changed by an update. `department_ids` is ignored.
+
+Catalog item reactivation is enabled per account. On an account with it enabled, an inactive catalog item can be updated, and `active` controls whether the sync reactivates it. Sync never deactivates a catalog item. Use Delete Catalog Item for that.
+
+Request `active` | Item is active | Item is inactive
+---------------- | -------------- | ----------------
+omitted or `true` | stays active | reactivated
+`false` | stays active | stays inactive
+
+`active: false` never deactivates a catalog item. To deactivate a catalog item, call Delete Catalog Item.
+
+A reactivated catalog item comes back in the departments it had, but not in its bundles. Its custom field values are kept unless the request sends `custom_fields`.
+
+On an account without reactivation enabled, a request for an inactive catalog item returns `404 Not Found`, and `active` is accepted but not acted on.
+
+Omitting `active` is fully backward compatible; existing SuiteApp payloads need no change. Sending `null` or a value that is not a boolean returns a 400 validation error. `active` in the response reflects the Procurify record, not the request value.
+
+The request body can be JSON or form-encoded. The strings `"true"` and `"false"` are read as booleans, so `"false"` behaves the same as `false`.
 
 ### HTTP Request
 
-`https://example.procurify.com/api/v3/integrations/netsuite/catalog-items/1234/`
+`https://example.procurify.com/api/v3/integrations/netsuite/catalog-items/<CATALOG_ITEM_ID>/`
+
+### URL Parameters
+
+Parameter | Description
+--------- | -----------
+CATALOG_ITEM_ID | ID of the catalog item being updated
 
 > The above command accepts a body:
 
@@ -2025,6 +2098,8 @@ Omitting `active` is fully backward compatible; existing SuiteApp payloads need 
 
 200 OK
 
+404 Not Found — catalog item does not exist, or is inactive on an account without catalog item reactivation enabled
+
 ### Arguments
 
 <code>name</code><span class="required-tag">required</span><br />
@@ -2056,20 +2131,35 @@ maybe a wiki link.)
 Amount for your item.
 
 <code>custom_fields[]</code><br />
-A list of custom fields to be assigned to your catalog item. Each custom field object in the list must have an appropriate value and matching name to one of your active custom fields in Procurify.
+A list of custom fields to be assigned to your catalog item. Each custom field object in the list must have an appropriate value and matching name to one of your active custom fields in Procurify. When sent, it replaces all of the item's custom field values; `[]` clears them. When left out, the stored values are kept.
+
+<code>external_id</code><span class="required-tag">required</span><br />
+ID of the integration object. It must match the catalog item's object map.
 
 <code>active</code><br />
-Boolean. NetSuite's active/inactive flag for the record. Accepted and validated but **not currently acted on**; existing behaviour is unchanged whether it is sent or omitted. Reserved for future use. Not nullable.
+Boolean. NetSuite's active/inactive flag for the record. On an account with catalog item reactivation enabled, omitted or `true` reactivates an inactive catalog item. `false` leaves the item's active state unchanged; it never deactivates. Otherwise accepted but not acted on. Not nullable.
 
 ## Delete Catalog Item  <code class='delete'>DELETE</code>
 
+This endpoint deactivates a specific catalog item, the same as a delete in the catalog UI. The item is removed from its bundles. Its department tags, custom field values and object map are kept, so `external_id` still links the item to the NetSuite record.
+
+On an account with catalog item reactivation enabled, Create Catalog Item or Update Catalog Item with the same `external_id` brings the item back. See those endpoints for what a reactivated item keeps.
+
 ### HTTP Request
 
-`https://example.procurify.com/api/v3/integrations/netsuite/catalog-items/1234/`
+`https://example.procurify.com/api/v3/integrations/netsuite/catalog-items/<CATALOG_ITEM_ID>/`
+
+### URL Parameters
+
+Parameter | Description
+--------- | -----------
+CATALOG_ITEM_ID | ID of the catalog item being deactivated
 
 ### HTTP Response Status Code
 
 204 No Content
+
+404 Not Found — catalog item does not exist or is already inactive
 
 ## Get Currencies  <code class='get'>GET</code>
 
