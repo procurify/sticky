@@ -15,25 +15,13 @@ base64 string is the base64-encoding of "username:password"
 ```json
 {
   "data": {
-    "auth_string": "auth_string"
+    "auth_string": null
   },
   "metadata": {}
 }
 ```
 
-> The authentication string can then be used to do basic authentication in subsequent endpoint calls, so superuser credentials would not be needed.
-
-> Include basic authentication in subsequent request headers:
-
-```javascript
-
-Authorization:Basic
-aW50ZWdyYXRpb25zQHByb2N1c
-
-```
-
-This endpoint enables integration and get or create the integration user. It returns a basic authentication string of
-the integration user.
+This endpoint enables the NetSuite integration. It does not create an integration user or return credentials: `auth_string` is always `null`.
 
 <aside class="notice">
 Only users with superuser role can call this endpoint.
@@ -88,7 +76,11 @@ Only users with superuser role can call this endpoint.
 }
 ```
 
-This endpoint retrieves a list of accounts with specific status.
+This endpoint retrieves a list of active accounts.
+
+Without `status`, the list contains the accounts that have an object map for this integration, whatever its status. `status` filters by the object map status. It matches the status name, ignoring case: `pending`, `synced`, `error`, `unsynced`, `won't sync`, `ignore`, `manually synced` or `neutral`. An unrecognised value is ignored. `status=pending` also includes accounts that have no object map.
+
+`show_all` with any value, including `false`, returns every active account and ignores `status`.
 
 ### HTTP Request
 
@@ -98,8 +90,9 @@ This endpoint retrieves a list of accounts with specific status.
 
 Parameter | Description | Example
 --------- | ----------- | ---------
-STATUS | status can be `pending`, `synced`, or `error` | `?status=pending`
+STATUS | object map status name, for example `pending`, `synced` or `error` | `?status=pending`
 CODE | the alphanumeric account code, **can be comma separated** | `?code=ABC123,DEF456,999`
+SHOW_ALL | any value returns every active account, mapped or not | `?show_all=true`
 
 ### HTTP Response Status Code
 
@@ -123,10 +116,9 @@ CODE | the alphanumeric account code, **can be comma separated** | `?code=ABC123
   },
   "metadata": {}
 }
-}
 ```
 
-This endpoint retrieves a list of accounts with specific status.
+This endpoint retrieves a specific active account.
 
 ### HTTP Request
 
@@ -135,6 +127,8 @@ This endpoint retrieves a list of accounts with specific status.
 ### HTTP Response Status Code
 
 200 OK
+
+404 Not Found — account does not exist or is inactive
 
 ## Create Account <code class='post'>POST</code>
 
@@ -160,7 +154,7 @@ This endpoint retrieves a list of accounts with specific status.
     "description": "Test Account",
     "parent": null,
     "active": true,
-    "account_type": "2",
+    "account_type": "Expense",
     "external_id": "4321",
     "custom_fields": {}
   },
@@ -168,7 +162,13 @@ This endpoint retrieves a list of accounts with specific status.
 }
 ```
 
-This endpoint creates an account.
+This endpoint creates an account, or updates the existing account with the same `code`.
+
+An existing account with that `code` is updated from the request and made active, even if it was inactive. Its object map is set to `external_id`. The response is `201 Created` in both cases.
+
+Every field is set from the request. Leaving out `parent` clears the account's parent.
+
+`account_type` is sent as an ID and returned as its name, for example `"Expense"`.
 
 ### HTTP Request
 
@@ -178,13 +178,15 @@ This endpoint creates an account.
 
 201 Created
 
+400 Bad Request — the request updates an existing account and another active account already uses the code (`ACCOUNT_CODE_EXISTS`)
+
 ### Arguments
 
 <code>code</code><span class="required-tag">required</span><br />
 Account code.
 
-<code>description</code><br />
-Account code description.
+<code>description</code><span class="required-tag">required</span><br />
+Account code description. Send an empty string for no description.
 
 <code>account_type</code><span class="required-tag">required</span><br />
 Type of the account code.
@@ -197,6 +199,9 @@ EXPENSE | 2
 INCOME | 3
 EQUITY | 4
 OTHER | 5
+
+<code>parent</code><br />
+ID of the parent account code. Left out or `null` means no parent.
 
 <code>external_id</code><span class="required-tag">required</span><br />
 ID of the integration object.
@@ -225,7 +230,7 @@ ID of the integration object.
     "description": "Test Account",
     "parent": null,
     "active": true,
-    "account_type": "2",
+    "account_type": "Expense",
     "external_id": "4321",
     "custom_fields": {}
   },
@@ -233,7 +238,11 @@ ID of the integration object.
 }
 ```
 
-This endpoint updates a specific account.
+This endpoint updates a specific account and makes it active, even if it was inactive.
+
+Every field is set from the request. Leaving out `parent` clears the account's parent.
+
+`external_id` is required but not used: the account's object map is not changed. To link the account to a different NetSuite record, use Upsert Object Map.
 
 ### HTTP Request
 
@@ -249,13 +258,15 @@ ACCOUNT_ID | ID of the account being updated
 
 200 OK
 
+400 Bad Request — another active account already uses the code (`ACCOUNT_CODE_EXISTS`)
+
 ### Arguments
 
 <code>code</code><span class="required-tag">required</span><br />
 Account code.
 
-<code>description</code><br />
-Account code description.
+<code>description</code><span class="required-tag">required</span><br />
+Account code description. Send an empty string for no description.
 
 <code>account_type</code><span class="required-tag">required</span><br />
 Type of the account code.
@@ -269,12 +280,17 @@ INCOME | 3
 EQUITY | 4
 OTHER | 5
 
+<code>parent</code><br />
+ID of the parent account code. Left out or `null` clears the parent.
+
 <code>external_id</code><span class="required-tag">required</span><br />
-ID of the integration object.
+ID of the integration object. Validated but not stored.
 
 ## Delete Account <code class='delete'>DELETE</code>
 
-This endpoint deletes a specific account.
+This endpoint soft deletes a specific account and its child accounts. They are deactivated, and the budgets that use them are removed.
+
+Their codes are renamed to `DEL_<ID>_<TIMESTAMP>_<CODE>`, cut to 50 characters, which frees the code. A later Create Account with the same code creates a new account instead of bringing back the deleted one.
 
 ### HTTP Request
 
@@ -314,7 +330,7 @@ ACCOUNT_ID | ID of the account being deleted
   ],
   "metadata": {
     "pagination": {
-      "count": 1,
+      "count": 2,
       "next": null,
       "previous": null,
       "page_size": 10,
@@ -325,7 +341,11 @@ ACCOUNT_ID | ID of the account being deleted
 }
 ```
 
-This endpoint retrieves a list of payment-terms with specific status.
+This endpoint retrieves a list of active payment terms.
+
+Without `status`, the list contains the payment terms that have an object map for this integration, whatever its status. `status` filters by the object map status. It matches the status name, ignoring case: `pending`, `synced`, `error`, `unsynced`, `won't sync`, `ignore`, `manually synced` or `neutral`. An unrecognised value is ignored.
+
+`show_all` with any value, including `false`, returns every active payment term and ignores `status`.
 
 ### HTTP Request
 
@@ -335,7 +355,8 @@ This endpoint retrieves a list of payment-terms with specific status.
 
 Parameter | Description | Example
 --------- | ----------- | ---------
-STATUS | status can be `pending`, `synced`, or `error` | `?status=pending`
+STATUS | object map status name, for example `pending`, `synced` or `error` | `?status=pending`
+SHOW_ALL | any value returns every active payment term, mapped or not | `?show_all=true`
 
 ### HTTP Response Status Code
 
@@ -356,10 +377,9 @@ STATUS | status can be `pending`, `synced`, or `error` | `?status=pending`
   },
   "metadata": {}
 }
-}
 ```
 
-This endpoint retrieves a list of payment-terms with specific status.
+This endpoint retrieves a specific active payment term.
 
 ### HTTP Request
 
@@ -368,6 +388,8 @@ This endpoint retrieves a list of payment-terms with specific status.
 ### HTTP Response Status Code
 
 200 OK
+
+404 Not Found — payment term does not exist or is inactive
 
 ## Create Payment Term <code class='post'>POST</code>
 
@@ -388,16 +410,19 @@ This endpoint retrieves a list of payment-terms with specific status.
   "data": {
     "id": 14,
     "name": "New term 2",
-    "description": "",
+    "description": "This describes me",
     "external_id": "haha 2",
     "custom_fields": {}
   },
   "metadata": {}
 }
-}
 ```
 
-This endpoint creates an account.
+This endpoint creates a payment term, or updates the existing payment term with the same `name`.
+
+An existing payment term with that `name` is updated from the request and made active, including one removed with Delete Payment Term. Its object map is set to `external_id`. The response is `201 Created` in both cases.
+
+Leaving out `description` sets it to an empty string.
 
 ### HTTP Request
 
@@ -413,7 +438,7 @@ This endpoint creates an account.
 Name of the payment term
 
 <code>description</code><br />
-Payment Term description.
+Payment Term description. Left out, it is set to an empty string.
 
 <code>external_id</code><span class="required-tag">required</span><br />
 ID of the integration object.
@@ -437,16 +462,21 @@ ID of the integration object.
   "data": {
     "id": 14,
     "name": "New term 2",
-    "description": "",
+    "description": "This describes me",
     "external_id": "haha 2",
     "custom_fields": {}
   },
   "metadata": {}
 }
-}
 ```
 
-This endpoint updates a specific account.
+This endpoint updates a specific payment term and makes it active, even if it was removed with Delete Payment Term.
+
+Leaving out `description` sets it to an empty string.
+
+`external_id` is required but not used: the payment term's object map is not changed. To link the payment term to a different NetSuite record, use Upsert Object Map.
+
+Renaming a payment term to a name another payment term already has fails with the message `A different payment term named '<NAME>' already exists.`
 
 ### HTTP Request
 
@@ -456,11 +486,13 @@ This endpoint updates a specific account.
 
 Parameter | Description
 --------- | -----------
-PAYMENT_TERM_ID | ID of the account being updated
+PAYMENT_TERM_ID | ID of the payment term being updated
 
 ### HTTP Response Status Code
 
 200 OK
+
+400 Bad Request — another payment term already has the name
 
 ### Arguments
 
@@ -468,14 +500,14 @@ PAYMENT_TERM_ID | ID of the account being updated
 Name of the payment term
 
 <code>description</code><br />
-Payment Term description.
+Payment Term description. Left out, it is set to an empty string.
 
 <code>external_id</code><span class="required-tag">required</span><br />
-ID of the integration object.
+ID of the integration object. Validated but not stored.
 
 ## Delete Payment Term <code class='delete'>DELETE</code>
 
-This endpoint deletes a specific account.
+This endpoint soft deletes a specific payment term. It is deactivated and no longer returned by Get Payment Terms. Create Payment Term with the same name, or Update Payment Term, brings it back.
 
 ### HTTP Request
 
@@ -485,7 +517,7 @@ This endpoint deletes a specific account.
 
 Parameter | Description
 --------- | -----------
-PAYMENT_TERM_ID | ID of the account being deleted
+PAYMENT_TERM_ID | ID of the payment term being deleted
 
 ### HTTP Response Status Code
 
@@ -523,7 +555,7 @@ PAYMENT_TERM_ID | ID of the account being deleted
 }
 ```
 
-This endpoint retrieves a list content types.
+This endpoint retrieves the content types used by the integration: bills, bill lines, purchase orders and item receipt lines. The list is not paginated.
 
 ### HTTP Request
 
@@ -533,7 +565,7 @@ This endpoint retrieves a list content types.
 
 Parameter | Description
 --------- | -----------
-MODEL | Filter Contenty Types by model name
+MODEL | Filter content types by model name
 
 ### HTTP Response Status Code
 
@@ -545,16 +577,28 @@ MODEL | Filter Contenty Types by model name
 
 ```json
 {
-  "data": {
-    "id": 54,
-    "field_label": "Weight",
-    "field_required": false
-  },
-  "metadata": {}
+  "data": [
+    {
+      "id": 54,
+      "field_label": "Weight",
+      "field_model": "po",
+      "field_required": false
+    }
+  ],
+  "metadata": {
+    "pagination": {
+      "count": 1,
+      "next": null,
+      "previous": null,
+      "page_size": 10,
+      "num_pages": 1,
+      "current_page": 1
+    }
+  }
 }
 ```
 
-This endpoint retrieves the Purchase Order custom fields.
+This endpoint retrieves a list of the active purchase order custom fields.
 
 ### HTTP Request
 
@@ -564,16 +608,14 @@ This endpoint retrieves the Purchase Order custom fields.
 
 200 OK
 
-### URL Parameters
-
 ## Upsert PO Custom Field Value <code class='post'>POST</code>
 
 > The above command accepts a body:
 
 ```json
 {
-  "purchase_order_id": 1
-  "custom_field_id": 1
+  "purchase_order_id": 1,
+  "custom_field_id": 1,
   "custom_field_value": "Test"
 }
 ```
@@ -591,7 +633,7 @@ This endpoint retrieves the Purchase Order custom fields.
 }
 ```
 
-This endpoint updates a PO custom field value.
+This endpoint sets a custom field value on a purchase order. `PUT` to the same URL behaves the same way.
 
 ### HTTP Request
 
@@ -624,14 +666,16 @@ Set custom field value for the purchase order.
       "object_id": 151,
       "status": 1,
       "content_type": 23,
-      "external_id": ""
+      "external_id": "",
+      "datetime_last_synced": "2020-01-02T10:15:00-08:00"
     },
     {
       "id": 2,
       "object_id": 1,
       "status": 1,
       "content_type": 23,
-      "external_id": ""
+      "external_id": "",
+      "datetime_last_synced": "2020-01-02T10:15:00-08:00"
     }
   ],
   "metadata": {
@@ -647,7 +691,7 @@ Set custom field value for the purchase order.
 }
 ```
 
-This endpoint retrieves a list of object maps with specific status.
+This endpoint retrieves a list of this integration's object maps.
 
 ### HTTP Request
 
@@ -657,7 +701,10 @@ This endpoint retrieves a list of object maps with specific status.
 
 Parameter | Description
 --------- | -----------
-STATUS | status can be "pending", "synced", or "error"
+STATUS | object map status ID, for example `0`. See the status table under Upsert Object Map. Status names such as `pending` are not accepted.
+OBJECT_ID | ID of the Procurify object
+CONTENT_TYPE | ID of the content type
+EXTERNAL_ID | part of the external ID, ignoring case
 
 ### HTTP Response Status Code
 
@@ -686,13 +733,18 @@ STATUS | status can be "pending", "synced", or "error"
     "object_id": 151,
     "status": 1,
     "content_type": 23,
-    "external_id": "1234"
+    "external_id": "1234",
+    "datetime_last_synced": "2020-01-02T10:15:00-08:00"
   },
   "metadata": {}
 }
 ```
 
-This endpoint upserts an object map.
+This endpoint creates or updates the object map for a Procurify object. The object map is found by `content_type` and `object_id`.
+
+When `status` is left out, it is set to synced (`1`) if `external_id` is sent. Otherwise a new object map is pending (`0`) and an existing one becomes unsynced (`3`). When `external_id` is left out, an existing object map keeps its external ID.
+
+When `message` is sent, it is saved to the integration logs: as an error when `status` is `2`, otherwise as a success.
 
 ### HTTP Request
 
@@ -700,7 +752,9 @@ This endpoint upserts an object map.
 
 ### HTTP Response Status Code
 
-200 OK
+201 Created
+
+404 Not Found — `content_type` or `object_id` does not exist
 
 ### Arguments
 
@@ -718,11 +772,13 @@ Status | ID
 PENDING | 0
 SYNCED | 1
 ERROR | 2
+UNSYNCED | 3
+WON'T SYNC | 4
+IGNORE | 5
+MANUALLY SYNCED | 6
+NEUTRAL | 7
 
-<code>name</code><br />
-Object map name.
-
-<code>external_id</code><span class="required-tag">required</span><br />
+<code>external_id</code><br />
 ID of the integration object.
 
 <code>message</code><br />
@@ -734,7 +790,7 @@ This endpoint deletes a specific object map.
 
 ### HTTP Request
 
-`https://example.procurify.com/api/v3/integrations/netsuite/catalog-items/<OBJECT_MAP_ID>/`
+`https://example.procurify.com/api/v3/integrations/netsuite/object-maps/<OBJECT_MAP_ID>/`
 
 ### URL Parameters
 
@@ -886,6 +942,7 @@ OBJECT_MAP_ID | ID of the object map being deleted
         "url": "http://fivestarbooks.com/",
         "payment_term": "n 30",
         "shipping_term": "FOB",
+        "vendor_external_id": null,
         "external_id": null,
         "custom_fields": {}
       },
@@ -944,7 +1001,7 @@ OBJECT_MAP_ID | ID of the object map being deleted
 }
 ```
 
-This endpoint retrieves a list of purchase orders with specific status.
+This endpoint retrieves a list of purchase orders. Purchase orders paid by credit card are not included.
 
 ### HTTP Request
 
@@ -954,10 +1011,11 @@ This endpoint retrieves a list of purchase orders with specific status.
 
 #### status
 
-Use this field to get purchase orders of a certain status. Multiple statuses can be combined using comma-separation.
+Use this field to get purchase orders of a certain status. Multiple statuses can be combined using comma-separation. Without it, purchase orders of every status are returned. Any other value fails with 400 `INVALID_STATUS`.
 
 Value       | Description
 ----------- | -----------
+all         | Get all records, whatever their status (the default)
 pending     | Get all records that need to be processed in NS (a combination of new/updated/deleted)
 synced      | Get all synced records previously successfully synced
 error       | Get all records that encountered an error during its most recent sync
@@ -965,11 +1023,15 @@ ignore      | Get all records that are not meant to sync over to NS. These are u
 
 #### id
 
-Try it out! `?id=1234` will get you PO with id=1234
+Try it out! `?id=1234` will get you PO with id=1234. **Can be comma separated**: `?id=1234,1235`
 
 #### transaction_date
 
-Try it out! `?transaction_date=2020-03-24` will get you PO's that were created after March 24th of 2020
+Try it out! `?transaction_date=2020-03-24` will get you POs with a transaction date on or after March 24th of 2020
+
+#### has_unsynced_receipts
+
+`?has_unsynced_receipts=true` will get you POs that have pending item receipt lines
 
 ### HTTP Response Status Code
 
@@ -986,27 +1048,27 @@ Try it out! `?transaction_date=2020-03-24` will get you PO's that were created a
       "id": 24,
       "name": "Whiteout",
       "order_item_id": 193,
-      "purchased_quantity": "10.00",
-      "received_quantity": "5.00",
+      "purchased_quantity": "10.00000",
+      "received_quantity": "5.00000",
       "receive_history": [
         {
-          "received_quantity": "3.00",
+          "received_quantity": "3.00000",
           "timestamp": "2019-11-28T12:31:57.735000-08:00"
         },
         {
-          "received_quantity": "2.00",
+          "received_quantity": "2.00000",
           "timestamp": "2019-11-28T12:32:17.234000-08:00"
         },
         {
-          "received_quantity": "3.00",
+          "received_quantity": "3.00000",
           "timestamp": "2019-11-28T12:32:38.206000-08:00"
         },
         {
-          "received_quantity": "2.00",
+          "received_quantity": "2.00000",
           "timestamp": "2019-11-28T12:33:16.307000-08:00"
         },
         {
-          "received_quantity": "5.00",
+          "received_quantity": "5.00000",
           "timestamp": "2019-11-28T12:49:25.943000-08:00"
         }
       ],
@@ -1024,8 +1086,8 @@ Try it out! `?transaction_date=2020-03-24` will get you PO's that were created a
       "updated_at": "2019-11-28T12:49:25.943330-08:00",
       "last_synced_info": {
         "synced_at": "2019-11-28T12:49:10.912734-08:00",
-        "received_quantity": "2.00",
-        "delta": "3.00"
+        "received_quantity": "2.00000",
+        "delta": "3.00000"
       },
       "external_id": "9999",
       "custom_fields": {}
@@ -1034,27 +1096,27 @@ Try it out! `?transaction_date=2020-03-24` will get you PO's that were created a
       "id": 25,
       "name": "Whiteout",
       "order_item_id": 193,
-      "purchased_quantity": "10.00",
-      "received_quantity": "1.00",
+      "purchased_quantity": "10.00000",
+      "received_quantity": "1.00000",
       "receive_history": [
         {
-          "received_quantity": "3.00",
+          "received_quantity": "3.00000",
           "timestamp": "2019-11-28T12:32:00.199000-08:00"
         },
         {
-          "received_quantity": "4.00",
+          "received_quantity": "4.00000",
           "timestamp": "2019-11-28T12:32:20.390000-08:00"
         },
         {
-          "received_quantity": "3.00",
+          "received_quantity": "3.00000",
           "timestamp": "2019-11-28T12:32:41.805000-08:00"
         },
         {
-          "received_quantity": "4.00",
+          "received_quantity": "4.00000",
           "timestamp": "2019-11-28T12:33:18.868000-08:00"
         },
         {
-          "received_quantity": "1.00",
+          "received_quantity": "1.00000",
           "timestamp": "2019-11-28T12:49:28.888000-08:00"
         }
       ],
@@ -1072,8 +1134,8 @@ Try it out! `?transaction_date=2020-03-24` will get you PO's that were created a
       "updated_at": "2019-11-28T12:49:28.888547-08:00",
       "last_synced_info": {
         "synced_at": "2019-11-28T12:49:08.573131-08:00",
-        "received_quantity": "4.00",
-        "delta": "-3.00"
+        "received_quantity": "4.00000",
+        "delta": "-3.00000"
       },
       "external_id": "9999",
       "custom_fields": {}
@@ -1092,7 +1154,7 @@ Try it out! `?transaction_date=2020-03-24` will get you PO's that were created a
 }
 ```
 
-This endpoint retrieves a list of item receipt lines with specific status.
+This endpoint retrieves a list of item receipt lines. Receipt lines of recurring orders are not included.
 
 ### HTTP Request
 
@@ -1102,15 +1164,23 @@ This endpoint retrieves a list of item receipt lines with specific status.
 
 #### status
 
+Multiple statuses can be combined using comma-separation. Without it, item receipt lines of every status are returned. Any other value fails with 400 `INVALID_STATUS`.
+
 Value       | Description
 ----------- | -----------
+all         | Get all records, whatever their status (the default)
 pending     | Get all records that need to be processed in NS (a combination of new/updated/deleted)
 synced      | Get all synced records previously successfully synced
 error       | Get all records that encountered an error during its most recent sync
+ignore      | Get all records that are not meant to sync over to NS
 
 #### id
 
-Try it out! `?id=1234` will get you item receipt line with id=1234
+Try it out! `?id=1234` will get you item receipt line with id=1234. **Can be comma separated**: `?id=1234,1235`
+
+#### purchase_order
+
+`?purchase_order=52` will get you the item receipt lines of the PO with id=52
 
 ### HTTP Response Status Code
 
@@ -1119,7 +1189,7 @@ Try it out! `?id=1234` will get you item receipt line with id=1234
 ### Fun Facts
 
 - New item receipt lines are guaranteed to have at least 1 item with quantity > 0
-- Pending item receipt lines will only show up if PO has status `SYNCED`
+- `status=pending` only returns item receipt lines whose PO has a NetSuite external ID. If the PO's own sync is in error, only receipt lines that already have an external ID are returned.
 
 ## Get Vendors <code class='get'>GET</code>
 
@@ -1180,7 +1250,7 @@ Parameter | Description                                                         
 --------- |--------------------------------------------------------------------------------------------------| ---------
 STATUS | Object map status, case-insensitive: "pending", "synced", "error", "unsynced", "won't sync", "ignore", "manually synced", or "neutral". Omitted or unrecognized returns vendors with an object map in any status. Ignored when `show_all` is set. | `?status=pending`
 name | name of the vendor                                                                               | `?name=BestBuy`
-show_all     | Can use this to show vendors that were never synced.  Might be useful for catalog item creation. | `?show_all=true`
+show_all     | Any value, including `false`, shows all active vendors, including vendors that were never synced. Might be useful for catalog item creation. | `?show_all=true`
 
 ### HTTP Response Status Code
 
@@ -1297,9 +1367,11 @@ Only active vendors are returned. A vendor removed with Delete Vendor returns `4
 
 This endpoint creates a vendor, or updates the existing vendor already linked to the same NetSuite record.
 
-The existing vendor is found by `external_id` only, through the integration's object map. Vendor names are not unique and are not used to match preferred vendors. If a vendor is renamed in NetSuite, the next sync updates the mapped Procurify vendor and renames it. An unmapped `external_id` creates a new vendor, even when a preferred vendor with the same name already exists. There is no duplicate-name check on this endpoint.
+The existing vendor is found by `external_id` first, through the integration's object map. If a vendor is renamed in NetSuite, the next sync updates the mapped Procurify vendor and renames it.
 
-The one exception is the first sync of a system vendor (checkout or Amazon punchout). When no object map exists for the `external_id`, an active system vendor with the same name is linked, unless it is already linked to a different `external_id`. After that first link, the object map is the only identity used.
+When no object map exists for the `external_id`, the vendor is matched by name. The oldest active vendor whose name is exactly the same, including case and trailing spaces, is updated and linked to the `external_id`. Other, employee and credit card provider vendors are never matched by name, and neither is a vendor already linked to a different `external_id`. Only when nothing matches is a new vendor created. After the first link, the object map is the only identity used.
+
+When a vendor is updated, a field the request leaves out, or sends as `null` or `""`, keeps its stored value, so sync cannot clear a field. `email` and `alt_email` are different: the vendor's existing email addresses are always kept, after the ones in the request. Sending a new `email` makes the old one an alternate email instead of replacing it. `payment_term` and `shipping_term` keep their stored values only when left out.
 
 A request whose `external_id` maps to a vendor type that is not synced (other, employee, or credit card provider) fails with `INVALID_VENDOR_TYPE`. When an existing vendor is matched, the rules for `active` and for `external_id` are the same as on Update Vendor. The response is `201 Created` in both cases.
 
@@ -1310,11 +1382,13 @@ Request `active` | Existing vendor is active | Existing vendor is inactive | No 
 omitted or `true` | stays active | reactivated | created active
 `false` | stays active | stays inactive | not created, 400 `INACTIVE_VENDOR_NOT_CREATED`
 
+A vendor matched by name is an existing vendor, and it is always active, so `active: false` with a name match links and updates it.
+
 `active: false` never deactivates a vendor. To deactivate a vendor, call Delete Vendor.
 
 A vendor removed with Delete Vendor keeps its object map. A later POST with the same `external_id` updates that vendor instead of creating a second one. It is reactivated unless the request sends `active: false`.
 
-Omitting `active` is fully backward compatible; existing SuiteApp payloads need no change. Sending a non-boolean or `null` value returns a 400 validation error. `active` in the response reflects the Procurify record, not the request value.
+Omitting `active` is fully backward compatible; existing SuiteApp payloads need no change. Send `active` as a JSON boolean. Only the boolean `false` is read as false: the string `"false"`, `0` and similar values are treated as `true`. `null` returns a 400 validation error. `active` in the response reflects the Procurify record, not the request value.
 
 The request body must be JSON. Other content types return `415 Unsupported Media Type`.
 
@@ -1391,16 +1465,16 @@ Vendor comments.
 Vendor URL.
 
 <code>payment_term</code><br />
-Vendor payment term.
+Name of an active payment term. An unknown name returns a 400 validation error.
 
 <code>shipping_term</code><br />
-Vendor shipping term.
+Name of an active shipping term. An unknown name returns a 400 validation error.
 
 <code>vendor_external_id</code><br />
-A field on the Procurify vendor record. It is stored as sent and is not used to match vendors. Delete Vendor clears it.
+A field on the Procurify vendor record. It is not used to match vendors. Sending `null` or `""` keeps the stored value; only Delete Vendor clears it.
 
 <code>external_id</code><span class="required-tag">required</span><br />
-ID of the integration object. It is stored in the integration's object map, not on the vendor record, and it is the only value used to match the request to an existing vendor. Delete Vendor keeps it.
+ID of the integration object. It is stored in the integration's object map, not on the vendor record. It matches the request to an existing vendor, with an exact name match as the fallback when it is not mapped yet. Delete Vendor keeps it.
 
 <code>active</code><br />
 Boolean. NetSuite's active/inactive flag for the record. Omitted or `true` creates the vendor active, or reactivates a matched inactive vendor. `false` leaves a matched vendor's active state unchanged and refuses to create a new vendor. Not nullable.
@@ -1468,6 +1542,8 @@ Boolean. NetSuite's active/inactive flag for the record. Omitted or `true` creat
 
 This endpoint updates a specific vendor and links it to `external_id` in the integration's object map.
 
+When a vendor is updated, a field the request leaves out, or sends as `null` or `""`, keeps its stored value, so sync cannot clear a field. `email` and `alt_email` are different: the vendor's existing email addresses are always kept, after the ones in the request. Sending a new `email` makes the old one an alternate email instead of replacing it. `payment_term` and `shipping_term` keep their stored values only when left out.
+
 `active` controls whether the sync reactivates the vendor. Sync never deactivates a vendor. Use Delete Vendor for that.
 
 Request `active` | Vendor is active | Vendor is inactive
@@ -1479,7 +1555,7 @@ omitted or `true` | stays active | reactivated
 
 There is no duplicate-name check. If `external_id` is already mapped to a different vendor, the request fails with 400 `EXTERNAL_ID_ALREADY_MAPPED` and nothing is written. Sending a new `external_id` for a vendor moves that vendor's own mapping to the new id.
 
-Omitting `active` is fully backward compatible; existing SuiteApp payloads need no change. Sending a non-boolean or `null` value returns a 400 validation error. `active` in the response reflects the Procurify record, not the request value.
+Omitting `active` is fully backward compatible; existing SuiteApp payloads need no change. Send `active` as a JSON boolean. Only the boolean `false` is read as false: the string `"false"`, `0` and similar values are treated as `true`. `null` returns a 400 validation error. `active` in the response reflects the Procurify record, not the request value.
 
 The request body must be JSON. Other content types return `415 Unsupported Media Type`.
 
@@ -1562,16 +1638,16 @@ Vendor comments.
 Vendor URL.
 
 <code>payment_term</code><br />
-Vendor payment term.
+Name of an active payment term. An unknown name returns a 400 validation error.
 
 <code>shipping_term</code><br />
-Vendor shipping term.
+Name of an active shipping term. An unknown name returns a 400 validation error.
 
 <code>vendor_external_id</code><br />
-A field on the Procurify vendor record. It is stored as sent and is not used to match vendors. Delete Vendor clears it.
+A field on the Procurify vendor record. It is not used to match vendors. Sending `null` or `""` keeps the stored value; only Delete Vendor clears it.
 
 <code>external_id</code><span class="required-tag">required</span><br />
-ID of the integration object. It is stored in the integration's object map, not on the vendor record, and it is the only value used to match the request to an existing vendor. Delete Vendor keeps it.
+ID of the integration object. It is stored in the integration's object map, not on the vendor record. The vendor to update comes from the URL; `external_id` is only written to the object map. Delete Vendor keeps it.
 
 <code>active</code><br />
 Boolean. NetSuite's active/inactive flag for the record. Omitted or `true` reactivates an inactive vendor. `false` leaves the vendor's active state unchanged; it never deactivates. Not nullable.
@@ -1712,10 +1788,12 @@ ID of the integration object. Reactivate sets the vendor's object map to this va
         "content_type": 60,
         "external_id": "external-account-code-10",
         "uuid": "",
-        "identifiter": "account_code_1 - description",
+        "identifier": "account_code_1 - description",
         "message": "Sync Complete"
       },
-      "created_at": "2019-12-10T17:47:00.373867-08:00"
+      "created_at": "2019-12-10T17:47:00.373867-08:00",
+      "request": {},
+      "response": {}
     },
     {
       "id": 2,
@@ -1726,7 +1804,7 @@ ID of the integration object. Reactivate sets the vendor's object map to this va
         "content_type": 21,
         "external_id": "external-vendor-20",
         "uuid": "",
-        "identifiter": "Vendor 1",
+        "identifier": "Vendor 1",
         "message": "Sync Complete"
       },
       "created_at": "2019-12-10T17:47:00.373867-08:00"
@@ -1740,7 +1818,7 @@ ID of the integration object. Reactivate sets the vendor's object map to this va
         "content_type": 23,
         "external_id": "external-po-30",
         "uuid": "6bfcf0610fd211eaa1e506ca8f09037c",
-        "identifiter": "PF30",
+        "identifier": "PF30",
         "message": "You have entered an Invalid Field Value 2 for the following field: location."
       },
       "created_at": "2019-12-10T17:47:00.373867-08:00"
@@ -1754,7 +1832,7 @@ ID of the integration object. Reactivate sets the vendor's object map to this va
         "content_type": 280,
         "external_id": "external-reciept-item-40",
         "uuid": "6bfcf0610fd211eaa1e506ca8f09037c",
-        "identifiter": "PF30",
+        "identifier": "PF30",
         "message": "You can not initialize itemreceipt: invalid reference 42111."
       },
       "created_at": "2019-12-10T17:47:00.373867-08:00"
@@ -1773,22 +1851,26 @@ ID of the integration object. Reactivate sets the vendor's object map to this va
 }
 ```
 
+Each log also has `request` and `response`, the JSON payloads saved with the log. They are only shown on the first entry above.
+
 ### URL Parameters
 
 Parameter   | Values
 ------------| -----------
 status      | `success`, `error`
-object_type | `purchaseorder`, `receiptline`, `accountcode`, `vendor`
+object_type | `purchaseorder`, `receiptline`, `accountcode`, `vendor`, `bill`, `payment`
+object_id   | ID of the Procurify object
+search      | text to find in the log message
 
 ### HTTP Response Status Code
 
 200 OK
 
-## Batch Upsert Object Maps  <code class='get'>POST</code>
+## Batch Upsert Object Maps  <code class='post'>POST</code>
 
 ### HTTP Request
 
-`https://example.procurify.com/api/v3/integrations/object-maps/batch/`
+`https://example.procurify.com/api/v3/integrations/netsuite/object-maps/batch/`
 
 > The above command accepts a body:
 
@@ -1821,25 +1903,31 @@ object_type | `purchaseorder`, `receiptline`, `accountcode`, `vendor`
       "object_id": 151,
       "status": 1,
       "content_type": 23,
-      "external_id": "1234"
+      "external_id": "1234",
+      "datetime_last_synced": "2020-01-02T10:15:00-08:00"
     },
     {
       "id": 2,
       "object_id": 121,
       "status": 1,
       "content_type": 23,
-      "external_id": "1244"
+      "external_id": "1244",
+      "datetime_last_synced": "2020-01-02T10:15:00-08:00"
     }
   ],
   "metadata": {}
 }
 ```
 
-This endpoint batch upserts multiple object maps.
+This endpoint batch upserts multiple object maps. Each entry follows the same rules as Upsert Object Map, including the default `status`.
+
+Batch upsert only supports purchase orders, item receipt lines, vendors, accounts and payment terms. Any other content type fails with 400 `Unsupported type for object map creation.` Every `object_id` must exist.
 
 ### HTTP Response Status Code
 
 201 CREATED
+
+400 Bad Request — an entry's content type is not supported
 
 ### Arguments
 
@@ -1850,18 +1938,9 @@ ID of the Procurify object.
 ID of Procurify content_type.
 
 <code>status</code><br />
-Object map status.
+Object map status ID. See the status table under Upsert Object Map.
 
-Status | ID
---------- | -----------
-PENDING | 0
-SYNCED | 1
-ERROR | 2
-
-<code>name</code><br />
-Object map name.
-
-<code>external_id</code><span class="required-tag">required</span><br />
+<code>external_id</code><br />
 ID of the integration object.
 
 <code>message</code><br />
@@ -1888,7 +1967,7 @@ A reactivated catalog item comes back in the departments it had, but not in its 
 
 To keep a catalog item in step with NetSuite, call Delete Catalog Item when the item goes inactive in NetSuite. When it is active again, send the normal Create Catalog Item or Update Catalog Item request with `active` omitted or `true`.
 
-Omitting `active` is fully backward compatible; existing SuiteApp payloads need no change. Sending `null` or a value that is not a boolean returns a 400 validation error. `active` in the response reflects the Procurify record, not the request value.
+Omitting `active` is fully backward compatible; existing SuiteApp payloads need no change. Sending `null`, or a value that cannot be read as a boolean, returns a 400 validation error. `active` in the response reflects the Procurify record, not the request value.
 
 The request body can be JSON or form-encoded. The strings `"true"` and `"false"` are read as booleans, so `"false"` behaves the same as `false`.
 
@@ -1995,7 +2074,7 @@ maybe a wiki link.)
 Amount for your item.
 
 <code>custom_fields[]</code><br />
-A list of custom fields to be assigned to your catalog item. Each custom field object in the list must have an appropriate value and matching name to one of your active custom fields in Procurify.
+A list of custom fields to be assigned to your catalog item. Each custom field object in the list must have an appropriate value and matching name to one of your active custom fields in Procurify, and the list must include every required catalog item custom field.
 
 <code>external_id</code><span class="required-tag">required</span><br />
 ID of the integration object. It is stored in the integration's object map, and it is the only value used to match the request to an existing catalog item. Delete Catalog Item keeps it.
@@ -2012,7 +2091,7 @@ Fields the request leaves out are handled like this:
 * `name` is required.
 * `cost`, `description`, `unit_type`, `internal_sku`, `product_url`, `vendor` and `account_code` are set from the body. One that the body leaves out is cleared to its default: `0` for `cost`, an empty string for the text fields, and no vendor or account code. The SuiteApp leaves a field out when it is empty in NetSuite, so clearing it keeps the item in step.
 * `currency` keeps the stored value when the body leaves it out.
-* Custom field values are only replaced when the body sends `custom_fields`. The list replaces all of the item's custom field values, and an explicit `[]` clears them. When `custom_fields` is left out, the stored values are kept.
+* Custom field values are only replaced when the body sends `custom_fields`. The list replaces all of the item's custom field values, and an explicit `[]` clears them. The list must include every required catalog item custom field, so `[]` is only accepted when none are required. When `custom_fields` is left out, the stored values are kept.
 * Department tags are never changed by an update. `department_ids` is ignored.
 
 An inactive catalog item can be updated, and `active` controls whether the sync reactivates it. Sync never deactivates a catalog item. Use Delete Catalog Item for that.
@@ -2026,7 +2105,7 @@ omitted or `true` | stays active | reactivated
 
 A reactivated catalog item comes back in the departments it had, but not in its bundles. Its custom field values are kept unless the request sends `custom_fields`.
 
-Omitting `active` is fully backward compatible; existing SuiteApp payloads need no change. Sending `null` or a value that is not a boolean returns a 400 validation error. `active` in the response reflects the Procurify record, not the request value.
+Omitting `active` is fully backward compatible; existing SuiteApp payloads need no change. Sending `null`, or a value that cannot be read as a boolean, returns a 400 validation error. `active` in the response reflects the Procurify record, not the request value.
 
 The request body can be JSON or form-encoded. The strings `"true"` and `"false"` are read as booleans, so `"false"` behaves the same as `false`.
 
@@ -2093,6 +2172,8 @@ CATALOG_ITEM_ID | ID of the catalog item being updated
 
 200 OK
 
+400 Bad Request — `external_id` differs from the catalog item's object map (`Resource has different external ID from original.`), or the catalog item has no object map (`Resource not previously synced.`)
+
 404 Not Found — catalog item does not exist
 
 ### Arguments
@@ -2126,7 +2207,7 @@ maybe a wiki link.)
 Amount for your item.
 
 <code>custom_fields[]</code><br />
-A list of custom fields to be assigned to your catalog item. Each custom field object in the list must have an appropriate value and matching name to one of your active custom fields in Procurify. When sent, it replaces all of the item's custom field values; `[]` clears them. When left out, the stored values are kept.
+A list of custom fields to be assigned to your catalog item. Each custom field object in the list must have an appropriate value and matching name to one of your active custom fields in Procurify, and the list must include every required catalog item custom field. When sent, it replaces all of the item's custom field values; `[]` clears them when no catalog item custom field is required. When left out, the stored values are kept.
 
 <code>external_id</code><span class="required-tag">required</span><br />
 ID of the integration object. It must match the catalog item's object map.
@@ -2153,6 +2234,8 @@ CATALOG_ITEM_ID | ID of the catalog item being deactivated
 ### HTTP Response Status Code
 
 204 No Content
+
+400 Bad Request — the catalog item has no object map (`Resource not previously synced.`)
 
 404 Not Found — catalog item does not exist or is already inactive
 
